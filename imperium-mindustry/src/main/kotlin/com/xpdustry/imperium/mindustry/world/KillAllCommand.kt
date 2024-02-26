@@ -37,7 +37,7 @@ class KillAllCommand(instances: InstanceManager) :
     AbstractVoteCommand<Unit>(instances.get(), "killall", 30.seconds),
     ImperiumApplication.Listener {
 
-    @Command(["killall"])
+    @Command(["killall|ku"])
     @ClientSide
     @Scope(MindustryGamemode.SANDBOX)
     private fun onKillUnitsCommand(sender: CommandSender) {
@@ -58,11 +58,11 @@ class KillAllCommand(instances: InstanceManager) :
         onPlayerVote(sender.player, manager.session, Vote.NO)
     }
 
-    @Command(["killall|ku", "c"])
+    @Command(["killall|ku", "c"]. Rank.MODERATOR)
     @ClientSide
     @Scope(MindustryGamemode.SANDBOX)
-    private fun onKillUnitsNoCommand(sender: CommandSender) {
-        onPlayerVote(sender.player, manager.session, Vote.CANCEL)
+    private fun onKillUnitsCancelCommand(sender: CommandSender) {
+        onPlayerCancel(sender.player, manager.session)
     }
 
     override fun getVoteSessionDetails(session: VoteManager.Session<Unit>): String =
