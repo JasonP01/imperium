@@ -44,20 +44,27 @@ class KillAllCommand(instances: InstanceManager) :
         onVoteSessionStart(sender.player, manager.session, Unit)
     }
 
-    @Command(["killall", "y"])
+    @Command(["killall|ku", "y"])
     @ClientSide
     @Scope(MindustryGamemode.SANDBOX)
     private fun onKillUnitsYesCommand(sender: CommandSender) {
         onPlayerVote(sender.player, manager.session, Vote.YES)
     }
 
-    @Command(["killall", "n"])
+    @Command(["killall|ku", "n"])
     @ClientSide
     @Scope(MindustryGamemode.SANDBOX)
     private fun onKillUnitsNoCommand(sender: CommandSender) {
         onPlayerVote(sender.player, manager.session, Vote.NO)
     }
 
+    @Command(["killall|ku", "c"])
+    @ClientSide
+    @Scope(MindustryGamemode.SANDBOX)
+    private fun onKillUnitsNoCommand(sender: CommandSender) {
+        onPlayerVote(sender.player, manager.session, Vote.CANCEL)
+    }
+    
     override fun getVoteSessionDetails(session: VoteManager.Session<Unit>): String =
         "Type [orange]/killall <y/n>[] to kill all units."
 
