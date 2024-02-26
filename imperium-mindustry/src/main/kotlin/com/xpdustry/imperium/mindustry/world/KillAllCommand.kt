@@ -64,7 +64,7 @@ class KillAllCommand(instances: InstanceManager) :
     private fun onKillUnitsNoCommand(sender: CommandSender) {
         onPlayerVote(sender.player, manager.session, Vote.CANCEL)
     }
-    
+
     override fun getVoteSessionDetails(session: VoteManager.Session<Unit>): String =
         "Type [orange]/killall <y/n>[] to kill all units."
 
