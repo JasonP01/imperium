@@ -50,6 +50,7 @@ class TowerPathfinder(plugin: MindustryPlugin) : Pathfinder() {
         Vars.netServer.admins.addActionFilter {
             !(it.type == Administration.ActionType.placeBlock &&
                 it.tile.floor() in towerPassableFloors)
+            it.player.label("[scarlet]" + Iconc.cancel, 1, it.tile.tileX(), it.tile.tileY());
         }
     }
 
