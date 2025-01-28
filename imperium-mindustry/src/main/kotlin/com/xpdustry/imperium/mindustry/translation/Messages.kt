@@ -20,9 +20,10 @@
 package com.xpdustry.imperium.mindustry.translation
 
 import arc.graphics.Color
-import com.xpdustry.distributor.api.DistributorProvider
+import com.xpdustry.distributor.api.Distributor
 import com.xpdustry.distributor.api.component.Component
 import com.xpdustry.distributor.api.component.ListComponent.components
+import com.xpdustry.distributor.api.component.NumberComponent.number
 import com.xpdustry.distributor.api.component.TextComponent.newline
 import com.xpdustry.distributor.api.component.TextComponent.space
 import com.xpdustry.distributor.api.component.TextComponent.text
@@ -35,6 +36,8 @@ import com.xpdustry.distributor.api.component.style.ComponentColor.WHITE
 import com.xpdustry.distributor.api.component.style.ComponentColor.from
 import com.xpdustry.distributor.api.component.style.TextStyle
 import com.xpdustry.distributor.api.translation.TranslationArguments
+import com.xpdustry.imperium.common.account.Achievement
+import com.xpdustry.imperium.common.content.MindustryMap
 import com.xpdustry.imperium.common.database.IdentifierCodec
 import com.xpdustry.imperium.common.misc.DISCORD_INVITATION_LINK
 import com.xpdustry.imperium.common.security.Punishment
@@ -42,6 +45,7 @@ import com.xpdustry.imperium.common.security.ReportMessage
 import com.xpdustry.imperium.common.time.truncatedTo
 import com.xpdustry.imperium.common.user.User
 import com.xpdustry.imperium.mindustry.component.duration
+import com.xpdustry.imperium.mindustry.formation.FormationListener
 import com.xpdustry.imperium.mindustry.game.Tip
 import com.xpdustry.imperium.mindustry.security.MindustryRules
 import java.time.temporal.ChronoUnit
@@ -50,6 +54,7 @@ import mindustry.game.Team
 import mindustry.gen.Iconc
 import mindustry.gen.Player
 import mindustry.net.Administration.Config
+import mindustry.type.UnitType
 import mindustry.world.Block
 
 val SCARLET: ComponentColor = from(Color.scarlet)
@@ -58,6 +63,7 @@ val GRAY: ComponentColor = from(Color.gray)
 val LIGHT_GRAY: ComponentColor = from(Color.lightGray)
 val BLURPLE: ComponentColor = from(com.xpdustry.imperium.common.misc.BLURPLE)
 val ROYAL: ComponentColor = from(Color.royal)
+val LIME: ComponentColor = from(Color.lime)
 
 fun punishment_type_verb(type: Punishment.Type): Component =
     translatable("imperium.messages.punishment.type.${type.name.lowercase()}.verb", ORANGE)
@@ -67,9 +73,11 @@ fun punishment_message_simple(type: Punishment.Type, reason: String): Component 
         SCARLET,
         translatable(
             "imperium.messages.punishment.message.header",
-            TranslationArguments.array(punishment_type_verb(type), text(reason, ORANGE))),
+            TranslationArguments.array(punishment_type_verb(type), text(reason, ORANGE)),
+        ),
         newline(),
-        translatable("imperium.messages.punishment.type.${type.name.lowercase()}.details", WHITE))
+        translatable("imperium.messages.punishment.type.${type.name.lowercase()}.details", WHITE),
+    )
 
 fun punishment_message(punishment: Punishment, codec: IdentifierCodec): Component =
     components(
@@ -80,7 +88,8 @@ fun punishment_message(punishment: Punishment, codec: IdentifierCodec): Componen
         translatable(
             "imperium.messages.punishment.message.appeal",
             TranslationArguments.array(text(DISCORD_INVITATION_LINK.toString(), CYAN)),
-            ACCENT),
+            ACCENT,
+        ),
         translatable()
             .apply {
                 setTextStyle(TextStyle.of(WHITE))
@@ -88,8 +97,8 @@ fun punishment_message(punishment: Punishment, codec: IdentifierCodec): Componen
                 if (remaining != null) {
                     setKey("imperium.messages.punishment.expiration")
                     setParameters(
-                        TranslationArguments.array(
-                            duration(remaining.truncatedTo(ChronoUnit.MINUTES), ACCENT)))
+                        TranslationArguments.array(duration(remaining.truncatedTo(ChronoUnit.MINUTES), ACCENT))
+                    )
                 } else {
                     setKey("imperium.messages.punishment.expiration.permanent")
                 }
@@ -100,7 +109,9 @@ fun punishment_message(punishment: Punishment, codec: IdentifierCodec): Componen
         translatable(
             "imperium.messages.punishment.message.footer",
             TranslationArguments.array(text(codec.encode(punishment.id), LIGHT_GRAY)),
-            GRAY))
+            GRAY,
+        ),
+    )
 
 fun warning(kind: String, vararg arguments: String): Component =
     components(
@@ -110,18 +121,18 @@ fun warning(kind: String, vararg arguments: String): Component =
         translatable(
             "imperium.messages.warning.$kind",
             TranslationArguments.array(
-                listOf(punishment_type_verb(Punishment.Type.MUTE)) +
-                    arguments.map { text(it, ORANGE) }),
-            WHITE))
+                listOf(punishment_type_verb(Punishment.Type.MUTE)) + arguments.map { text(it, ORANGE) }
+            ),
+            WHITE,
+        ),
+    )
 
 fun status(status: Boolean): Component =
-    translatable(
-        "imperium.status.${if (status) "enabled" else "disabled"}", if (status) GREEN else SCARLET)
+    translatable("imperium.status.${if (status) "enabled" else "disabled"}", if (status) GREEN else SCARLET)
 
 fun gui_user_settings_title(): Component = translatable("imperium.gui.user-settings.title")
 
-fun gui_user_settings_description(): Component =
-    translatable("imperium.gui.user-settings.description")
+fun gui_user_settings_description(): Component = translatable("imperium.gui.user-settings.description")
 
 fun gui_user_settings_entry(setting: User.Setting, value: Boolean): Component =
     components()
@@ -138,9 +149,10 @@ fun gui_welcome_content(): Component =
             translatable(
                 "imperium.gui.welcome.content.header",
                 TranslationArguments.array(
-                    DistributorProvider.get()
-                        .mindustryComponentDecoder
-                        .decode(Config.serverName.string()))))
+                    Distributor.get().mindustryComponentDecoder.decode(Config.serverName.string())
+                ),
+            )
+        )
         .append(newline())
         .append(translatable("imperium.gui.welcome.content.body"))
         .append(newline())
@@ -149,13 +161,12 @@ fun gui_welcome_content(): Component =
         .build()
 
 fun gui_welcome_button_rules(): Component =
-    components(
-        ACCENT,
-        text(Iconc.bookOpen.toString()),
-        space(),
-        translatable("imperium.gui.welcome.button.rules"))
+    components(ACCENT, text(Iconc.bookOpen.toString()), space(), translatable("imperium.gui.welcome.button.rules"))
 
 fun gui_welcome_button_discord(): Component = text(Iconc.discord + " Discord", BLURPLE)
+
+fun gui_welcome_button_changelog(): Component =
+    components(GREEN, text(Iconc.book), space(), translatable("imperium.gui.welcome.button.changelog"))
 
 fun gui_rules_title(): Component = translatable("imperium.gui.rules.title")
 
@@ -166,7 +177,9 @@ fun gui_rules_content(): Component =
                 SCARLET,
                 text(Iconc.warning.toString()),
                 space(),
-                translatable("imperium.gui.rules.content.header")))
+                translatable("imperium.gui.rules.content.header"),
+            )
+        )
         .apply {
             for (rule in MindustryRules.entries) {
                 append(
@@ -181,7 +194,9 @@ fun gui_rules_content(): Component =
                         LIGHT_GRAY,
                         translatable("imperium.gui.rules.content.example"),
                         space(),
-                        translatable("imperium.rule.${rule.name.lowercase()}.example")))
+                        translatable("imperium.rule.${rule.name.lowercase()}.example"),
+                    ),
+                )
             }
         }
         .build()
@@ -196,8 +211,8 @@ fun gui_report_content_reason(): Component = translatable("imperium.gui.report.c
 fun gui_report_content_confirm(player: Player, reason: ReportMessage.Reason): Component =
     translatable(
         "imperium.gui.report.content.confirm",
-        TranslationArguments.array(
-            text(player.info.plainLastName(), ACCENT), report_reason(reason)))
+        TranslationArguments.array(text(player.info.plainLastName(), ACCENT), report_reason(reason)),
+    )
 
 fun gui_report_success(): Component = translatable("imperium.gui.report.success")
 
@@ -207,12 +222,26 @@ fun gui_report_no_players(): Component = translatable("imperium.gui.report.no-pl
 
 fun gui_report_rate_limit(): Component = translatable("imperium.gui.report.rate-limit", SCARLET)
 
+fun gui_rate_map_title(): Component = translatable("imperium.gui.rate-map.title")
+
+fun gui_rate_map_content_score_title(): Component = translatable("imperium.gui.rate-map.content.score.title")
+
+fun gui_rate_map_content_difficulty_title(): Component = translatable("imperium.gui.rate-map.content.difficulty.title")
+
+fun gui_rate_map_success(): Component = translatable("imperium.gui.rate-map.success")
+
+fun gui_rate_map_failure(): Component = translatable("imperium.gui.rate-map.failure", SCARLET)
+
+fun gui_error(): Component = translatable("imperium.gui.error", SCARLET)
+
 fun gui_close(): Component = translatable("imperium.gui.close")
 
 fun gui_back(): Component = translatable("imperium.gui.back", LIGHT_GRAY)
 
+fun gui_submit(): Component = translatable("imperium.gui.submit", ACCENT)
+
 fun user_setting_description(setting: User.Setting): Component =
-    translatable("imperium.user-setting.${setting.name.lowercase().replace('_', '-')}.description")
+    translatable("imperium.user-setting.${setting.name.lowercase()}.description")
 
 fun announcement_tip(tip: Tip): Component =
     components(
@@ -228,15 +257,28 @@ fun announcement_tip(tip: Tip): Component =
 fun announcement_ban(target: String, reason: String, duration: Duration): Component =
     translatable(
         "imperium.announcement.ban",
-        TranslationArguments.array(
-            text(target, ORANGE), text(reason, ORANGE), duration(duration, ORANGE)),
-        SCARLET)
+        TranslationArguments.array(text(target, ORANGE), text(reason, ORANGE), duration(duration, ORANGE)),
+        SCARLET,
+    )
 
-fun announcement_power_void_destroyed(x: Int, y: Int): Component =
+fun announcement_important_block_destroy_attempt(player: Player, block: Block, x: Int, y: Int): Component =
     translatable(
-        "imperium.announcement.power-void-destroyed",
-        TranslationArguments.array(text(x.toString(), ORANGE), text(y.toString(), ORANGE)),
-        SCARLET)
+        "imperium.announcement.important-block-destroy-attempt",
+        TranslationArguments.array(
+            text(player.plainName(), ORANGE),
+            translatable(block, ORANGE),
+            number(x, ORANGE),
+            number(y, ORANGE),
+        ),
+        SCARLET,
+    )
+
+fun announcement_important_block_destroyed(block: Block, x: Int, y: Int): Component =
+    translatable(
+        "imperium.announcement.important-block-destroyed",
+        TranslationArguments.array(translatable(block, ORANGE), number(x, ORANGE), number(y, ORANGE)),
+        SCARLET,
+    )
 
 fun announcement_dangerous_block_build(player: String, block: Block, x: Int, y: Int): Component =
     translatable(
@@ -244,14 +286,37 @@ fun announcement_dangerous_block_build(player: String, block: Block, x: Int, y: 
         TranslationArguments.array(
             text(player, ORANGE),
             translatable(block, ORANGE),
-            text(x.toString(), ORANGE),
-            text(y.toString(), ORANGE)),
-        SCARLET)
+            number(x, ORANGE),
+            number(y, ORANGE),
+        ),
+        SCARLET,
+    )
+
+fun announcement_impending_explosion_alert(block: Block, x: Int, y: Int): Component =
+    translatable(
+        "imperium.announcement.impending-explosion-alert",
+        TranslationArguments.array(translatable(block, ORANGE), number(x, ORANGE), number(y, ORANGE)),
+        SCARLET,
+    )
 
 fun command_team_success(team: Team): Component =
-    translatable(
-        "imperium.command.team.success",
-        TranslationArguments.array(translatable(team, from(team.color))))
+    translatable("imperium.command.team.success", TranslationArguments.array(translatable(team, from(team.color))))
+
+fun command_achievements(achievements: List<Achievement>): Component =
+    if (achievements.isEmpty()) {
+        error("No achievements")
+    } else if (achievements.size == 1) {
+        components(text(">>> ", CYAN), achievement_description(achievements[0], WHITE))
+    } else {
+        components()
+            .append(translatable("imperium.command.achievements.header", ACCENT))
+            .apply {
+                achievements.asSequence().sortedWith(compareBy(Enum<Achievement>::name)).forEach {
+                    append(newline(), text("> ", CYAN), achievement_name(it, WHITE))
+                }
+            }
+            .build()
+    }
 
 fun gatekeeper_failure(kind: String, details: String = "none"): Component =
     translatable("imperium.gatekeeper.failure.$kind", TranslationArguments.array(details), SCARLET)
@@ -261,8 +326,7 @@ fun server_restart_delay(reason: String, delay: Duration): Component =
         SCARLET,
         translatable("imperium.restart.reason.$reason"),
         space(),
-        translatable(
-            "imperium.restart.trigger.delay", TranslationArguments.array(duration(delay, ACCENT))),
+        translatable("imperium.restart.trigger.delay", TranslationArguments.array(duration(delay, ACCENT))),
     )
 
 fun server_restart_game_over(reason: String): Component =
@@ -279,3 +343,102 @@ fun report_reason(reason: ReportMessage.Reason): Component =
 fun yes(): Component = translatable("imperium.yes", GREEN)
 
 fun no(): Component = translatable("imperium.no", SCARLET)
+
+fun achievement_name(achievement: Achievement, color: ComponentColor): Component =
+    translatable("imperium.achievement.${achievement.name.lowercase()}.name", color)
+
+fun achievement_description(achievement: Achievement, color: ComponentColor): Component =
+    translatable("imperium.achievement.${achievement.name.lowercase()}.description", color)
+
+fun difficulty_name(difficulty: MindustryMap.Difficulty): Component =
+    translatable(
+        "imperium.difficulty.${difficulty.name.lowercase()}.name",
+        when (difficulty) {
+            MindustryMap.Difficulty.EASY -> LIME
+            MindustryMap.Difficulty.NORMAL -> ACCENT
+            MindustryMap.Difficulty.HARD -> ORANGE
+            MindustryMap.Difficulty.EXPERT -> SCARLET
+        },
+    )
+
+fun selected(component: Component, selected: Boolean): Component =
+    if (selected) components(text("> "), component, text(" <")) else component
+
+fun spawned(player: Player, amount: Int, unit: UnitType, team: Team, x: Int, y: Int): Component =
+    components(
+        WHITE,
+        text(">>> ", CYAN),
+        translatable(
+            "imperium.spawn-unit.success",
+            TranslationArguments.array(
+                text(player.info.plainLastName(), ACCENT),
+                number(amount, ACCENT),
+                translatable(unit, ACCENT),
+                translatable(team, from(team.color)),
+                number(x, ACCENT),
+                number(y, ACCENT),
+            ),
+        ),
+    )
+
+fun marked_griefer_block(player: Player): Component =
+    components(
+        WHITE,
+        text(">>> ", CYAN),
+        translatable("imperium.marked.block", TranslationArguments.array(text(player.info.plainLastName(), SCARLET))),
+    )
+
+fun marked_griefer_unit(player: Player): Component =
+    components(
+        WHITE,
+        text(">>> ", CYAN),
+        translatable("imperium.marked.unit", TranslationArguments.array(text(player.info.plainLastName(), SCARLET))),
+    )
+
+fun formation_failure_no_valid_unit(): Component =
+    components(SCARLET, text(">>> ", CYAN), translatable("imperium.formation.failure.no-valid-units", ACCENT))
+
+fun formation_failure_dead(): Component =
+    components(SCARLET, text(">>> ", CYAN), translatable("imperium.formation.failure.dead", ACCENT))
+
+fun formation_failure_require_enabled(): Component =
+    components(SCARLET, text(">>> ", CYAN), translatable("imperium.formation.failure.require-enabled", ACCENT))
+
+fun formation_toggle(enabled: Boolean): Component =
+    components(
+        WHITE,
+        text(">>> ", CYAN),
+        translatable("imperium.formation.toggle", TranslationArguments.array(status(enabled))),
+    )
+
+fun formation_pattern_change(pattern: FormationListener.FormationPatternEntry): Component =
+    components(
+        WHITE,
+        text(">>> ", CYAN),
+        translatable(
+            "imperium.formation.pattern.change",
+            TranslationArguments.array(
+                translatable("imperium.formation.pattern.entry.${pattern.name.lowercase()}", ACCENT)
+            ),
+        ),
+    )
+
+fun formation_pattern_list(): Component =
+    components()
+        .setTextStyle(TextStyle.of(WHITE))
+        .append(text(">>> ", CYAN), translatable("imperium.formation.pattern.list.header", ACCENT), newline())
+        .apply {
+            FormationListener.FormationPatternEntry.entries.forEach {
+                append(
+                    text("> ", CYAN),
+                    translatable("imperium.formation.pattern.entry.${it.name.lowercase()}", WHITE),
+                    space(),
+                    components(LIGHT_GRAY, text('('), text(it.name.lowercase()), text(')')),
+                    newline(),
+                )
+            }
+        }
+        .append(translatable("imperium.formation.pattern.list.footer", GRAY))
+        .build()
+
+fun gui_failure_password_mismatch(): Component = translatable("imperium.gui.failure.password-mismatch", SCARLET)

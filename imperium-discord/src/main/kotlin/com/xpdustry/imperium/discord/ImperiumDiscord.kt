@@ -37,6 +37,7 @@ import com.xpdustry.imperium.discord.commands.ServerCommand
 import com.xpdustry.imperium.discord.commands.VerifyCommand
 import com.xpdustry.imperium.discord.commands.WhitelistCommand
 import com.xpdustry.imperium.discord.content.MindustryContentListener
+import com.xpdustry.imperium.discord.metrics.MetricsListener
 import com.xpdustry.imperium.discord.rest.RestListener
 import com.xpdustry.imperium.discord.security.PunishmentListener
 import com.xpdustry.imperium.discord.security.ReportListener
@@ -80,6 +81,7 @@ fun main() {
             MapSubmitCommand::class,
             MindustryContentListener::class,
             HistoryCommand::class,
+            MetricsListener::class,
         )
         .forEach(application::register)
     application.init()
@@ -88,7 +90,8 @@ fun main() {
         listOf(
             application.instances.get<AnnotationScanner>("slash"),
             application.instances.get<AnnotationScanner>("menu"),
-            application.instances.get<AnnotationScanner>("modal"))
+            application.instances.get<AnnotationScanner>("modal"),
+        )
 
     for (listener in application.listeners) {
         for (scanner in scanners) {

@@ -67,10 +67,8 @@ import org.incendo.cloud.permission.Permission
 import org.incendo.cloud.setting.ManagerSetting
 import org.incendo.cloud.translations.TranslationBundle
 
-class CommandAnnotationScanner(
-    private val plugin: MindustryPlugin,
-    private val config: ImperiumConfig
-) : PluginAnnotationProcessor<Void> {
+class CommandAnnotationScanner(private val plugin: MindustryPlugin, private val config: ImperiumConfig) :
+    PluginAnnotationProcessor<Void> {
     private lateinit var clientCommandManager: MindustryCommandManager<CommandSender>
     private lateinit var serverCommandManager: MindustryCommandManager<CommandSender>
     private var initialized = false
@@ -94,8 +92,7 @@ class CommandAnnotationScanner(
                 marked = true
             }
             if (!marked) {
-                error(
-                    "Command function must be marked with either @ClientSide or @ServerSide: $function")
+                error("Command function must be marked with either @ClientSide or @ServerSide: $function")
             }
         }
         return Optional.empty()
@@ -105,31 +102,31 @@ class CommandAnnotationScanner(
         manager: MindustryCommandManager<CommandSender>,
         container: Any,
         function: KFunction<*>,
-        annotation: ImperiumCommand
+        annotation: ImperiumCommand,
     ) {
         var names = annotation.name.toNameWithAliases()
-        val base = mutableListOf(names.first)
-
+        val path = mutableListOf(names.first)
         var builder =
             manager
-                .commandBuilder(names.first, createLiteralDescription(base), *names.second)
+                .commandBuilder(names.first, createLiteralDescription(path), *names.second)
                 .permission(createPermission(function, annotation))
-                .commandDescription(createLiteralDescription(base))
 
         for (rest in annotation.path.drop(1)) {
             names = rest.toNameWithAliases()
-            base += names.first
-            builder = builder.literal(names.first, createLiteralDescription(base), *names.second)
+            path += names.first
+            builder = builder.literal(names.first, createLiteralDescription(path), *names.second)
         }
+
+        builder = builder.commandDescription(createLiteralDescription(path))
 
         for (parameter in function.parameters.drop(1)) {
             if (parameter.type.classifier == CommandSender::class) continue
             val flag = parameter.findAnnotation<Flag>()
             builder =
                 if (flag == null) {
-                    builder.argument(createCommandComponent<Any>(manager, parameter, base))
+                    builder.argument(createCommandComponent<Any>(manager, parameter, path))
                 } else {
-                    builder.flag(createFlagComponent<Any>(manager, parameter, base, flag))
+                    builder.flag(createFlagComponent<Any>(manager, parameter, path, flag))
                 }
         }
 
@@ -137,7 +134,8 @@ class CommandAnnotationScanner(
             builder.handler(
                 CommandExecutionHandler.FutureCommandExecutionHandler { ctx ->
                     ImperiumScope.MAIN.future { callCommandFunction(container, function, ctx) }
-                })
+                }
+            )
 
         manager.command(builder)
     }
@@ -150,7 +148,8 @@ class CommandAnnotationScanner(
             permission =
                 Permission.allOf(
                     permission,
-                    Permission.permission("imperium.achievement.${achievement.name.lowercase()}"))
+                    Permission.permission("imperium.achievement.${achievement.name.lowercase()}"),
+                )
         }
 
         val scope = function.findAnnotation<Scope>()?.gamemodes ?: emptyArray<MindustryGamemode>()
@@ -158,17 +157,13 @@ class CommandAnnotationScanner(
             permission =
                 Permission.allOf(
                     permission,
-                    Permission.anyOf(
-                        scope.map {
-                            Permission.permission("imperium.gamemode.${it.name.lowercase()}")
-                        }))
+                    Permission.anyOf(scope.map { Permission.permission("imperium.gamemode.${it.name.lowercase()}") }),
+                )
         }
 
         if (annotation.rank != Rank.OWNER) {
             permission =
-                Permission.anyOf(
-                    permission,
-                    Permission.permission("imperium.rank.${Rank.ADMIN.name.lowercase()}"))
+                Permission.anyOf(permission, Permission.permission("imperium.rank.${Rank.ADMIN.name.lowercase()}"))
         }
 
         return permission
@@ -178,7 +173,7 @@ class CommandAnnotationScanner(
     private fun <T : Any> createCommandComponent(
         manager: MindustryCommandManager<CommandSender>,
         parameter: KParameter,
-        base: List<String>
+        path: List<String>,
     ): TypedCommandComponent<CommandSender, T> {
         val token = TypeToken.get(parameter.type.javaType) as TypeToken<T>
         val parameters = manager.parserRegistry().parseAnnotations(token, parameter.annotations)
@@ -186,10 +181,11 @@ class CommandAnnotationScanner(
             .name(parameter.name!!)
             .parser(
                 manager.parserRegistry().createParser(token, parameters).getOrNull()
-                    ?: error("No parser found for type: ${parameter.type.javaType}"))
+                    ?: error("No parser found for type: ${parameter.type.javaType}")
+            )
             .valueType(token)
             .required(!parameter.isOptional)
-            .description(createArgumentDescription(base, parameter.name!!))
+            .description(createArgumentDescription(path, parameter.name!!))
             .commandManager(manager)
             .build()
     }
@@ -198,8 +194,8 @@ class CommandAnnotationScanner(
     private fun <T : Any> createFlagComponent(
         manager: MindustryCommandManager<CommandSender>,
         parameter: KParameter,
-        base: List<String>,
-        flag: Flag
+        path: List<String>,
+        flag: Flag,
     ): CommandFlag<T> {
         if (parameter.type.classifier != Boolean::class && !parameter.isOptional) {
             throw IllegalArgumentException("A value flag must be optional: ${parameter.name}")
@@ -207,11 +203,11 @@ class CommandAnnotationScanner(
         val builder =
             CommandFlag.builder<CommandSender>(parameter.name!!)
                 .withAliases(if (flag.alias.isNotBlank()) listOf(flag.alias) else emptyList())
-                .withDescription(createArgumentDescription(base, parameter.name!!))
+                .withDescription(createArgumentDescription(path, parameter.name!!))
         return if (parameter.type.classifier == Boolean::class && !parameter.isOptional) {
             builder.build() as CommandFlag<T>
         } else {
-            builder.withComponent(createCommandComponent<T>(manager, parameter, base)).build()
+            builder.withComponent(createCommandComponent<T>(manager, parameter, path)).build()
         }
     }
 
@@ -224,7 +220,7 @@ class CommandAnnotationScanner(
     private suspend fun callCommandFunction(
         container: Any,
         function: KFunction<*>,
-        context: CommandContext<CommandSender>
+        context: CommandContext<CommandSender>,
     ): Void? {
         val arguments = mutableMapOf<KParameter, Any>()
         for (parameter in function.parameters) {
@@ -275,12 +271,9 @@ class CommandAnnotationScanner(
     }
 
     private fun createArcCommandManager(handler: CommandHandler) =
-        MindustryCommandManager(
-                plugin, handler, ExecutionCoordinator.asyncCoordinator(), SenderMapper.identity())
+        MindustryCommandManager(plugin, handler, ExecutionCoordinator.asyncCoordinator(), SenderMapper.identity())
             .apply {
-                descriptionMapper {
-                    DescriptionFacade.translated(it.textDescription(), config.language)
-                }
+                descriptionMapper { DescriptionFacade.translated(it.textDescription(), config.language) }
                 settings().set(ManagerSetting.OVERRIDE_EXISTING_COMMANDS, true)
                 captionRegistry().registerProvider(TranslationBundle.core(CommandSender::getLocale))
                 parserRegistry().registerParser(KotlinDurationParser())

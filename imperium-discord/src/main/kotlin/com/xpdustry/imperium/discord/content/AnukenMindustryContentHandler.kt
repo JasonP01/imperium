@@ -43,7 +43,7 @@ import arc.util.serialization.Base64Coder
 import com.google.common.cache.CacheBuilder
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.async.ImperiumScope
-import com.xpdustry.imperium.common.config.DiscordConfig
+import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.misc.LoggerDelegate
 import java.awt.Graphics2D
 import java.awt.geom.AffineTransform
@@ -99,7 +99,7 @@ import mindustry.world.blocks.legacy.LegacyBlock
 
 // The base code is from Anuken/CoreBot, rewritten in kotlin and modified to be able to run in a
 // multithreaded environment.
-class AnukenMindustryContentHandler(directory: Path, private val config: DiscordConfig) :
+class AnukenMindustryContentHandler(directory: Path, private val config: ImperiumConfig) :
     MindustryContentHandler, ImperiumApplication.Listener {
     private var currentSchematicGraphics: Graphics2D? = null
     private var currentSchematicImage: BufferedImage? = null
@@ -107,9 +107,7 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
     private val directory = directory.resolve("mindustry-assets")
     private val images = mutableMapOf<String, Path>()
     private val regions =
-        CacheBuilder.newBuilder()
-            .expireAfterAccess(Duration.of(1L, ChronoUnit.MINUTES))
-            .build<String, BufferedImage>()
+        CacheBuilder.newBuilder().expireAfterAccess(Duration.of(1L, ChronoUnit.MINUTES)).build<String, BufferedImage>()
 
     override fun onImperiumInit() {
         Version.enabled = false
@@ -190,7 +188,8 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
                     affine.rotate(
                         (-rotation * Mathf.degRad).toDouble(),
                         (originX * 4).toDouble(),
-                        (originY * 4).toDouble())
+                        (originY * 4).toDouble(),
+                    )
                     currentSchematicGraphics!!.transform = affine
                     var image = getImage((region as AtlasRegion).name)
                     if (color != Color.white) {
@@ -200,12 +199,7 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
                 }
 
                 // Do nothing
-                override fun draw(
-                    texture: Texture,
-                    spriteVertices: FloatArray,
-                    offset: Int,
-                    count: Int
-                ) = Unit
+                override fun draw(texture: Texture, spriteVertices: FloatArray, offset: Int, count: Int) = Unit
             }
 
         Vars.content.load()
@@ -224,15 +218,12 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
 
     private fun downloadAssets() {
         val versionFile = directory.resolve("VERSION.txt")
-        if (Files.exists(versionFile) && versionFile.readText() == config.mindustryVersion) {
+        if (Files.exists(versionFile) && versionFile.readText() == config.discord.mindustryVersion) {
             return
         }
 
         if (Files.exists(directory)) {
-            Files.walk(directory)
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete)
+            Files.walk(directory).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete)
         }
         Files.createDirectories(directory)
 
@@ -245,34 +236,28 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
         downloadZipDirectory(
             http,
             URI.create(
-                "https://github.com/Anuken/Mindustry/releases/download/v${config.mindustryVersion}/Mindustry.jar"),
+                "https://github.com/Anuken/Mindustry/releases/download/v${config.discord.mindustryVersion}/Mindustry.jar"
+            ),
             "sprites",
             "sprites",
         )
 
         downloadZipDirectory(
             http,
-            URI.create(
-                "https://github.com/Anuken/Mindustry/archive/refs/tags/v${config.mindustryVersion}.zip"),
-            "Mindustry-${config.mindustryVersion}/core/assets-raw/sprites",
+            URI.create("https://github.com/Anuken/Mindustry/archive/refs/tags/v${config.discord.mindustryVersion}.zip"),
+            "Mindustry-${config.discord.mindustryVersion}/core/assets-raw/sprites",
             "raw-sprites",
         )
 
         MindustryImagePacker(directory).pack()
 
-        versionFile.writeText(config.mindustryVersion)
+        versionFile.writeText(config.discord.mindustryVersion)
     }
 
-    private fun downloadZipDirectory(
-        http: HttpClient,
-        uri: URI,
-        folder: String,
-        destination: String
-    ) {
+    private fun downloadZipDirectory(http: HttpClient, uri: URI, folder: String, destination: String) {
         logger.info("Downloading assets from $uri")
 
-        val response =
-            http.send(HttpRequest.newBuilder(uri).GET().build(), BodyHandlers.ofInputStream())
+        val response = http.send(HttpRequest.newBuilder(uri).GET().build(), BodyHandlers.ofInputStream())
 
         if (response.statusCode() != 200) {
             throw RuntimeException("Failed to download $uri")
@@ -282,17 +267,13 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
             var entry = zip.getNextEntry()
             while (entry != null) {
                 if (entry.name.startsWith(folder) && !entry.isDirectory) {
-                    val file =
-                        directory
-                            .resolve(destination)
-                            .resolve(entry.name.substring(folder.length + 1))
+                    val file = directory.resolve(destination).resolve(entry.name.substring(folder.length + 1))
                     Files.createDirectories(file.parent)
                     Files.newOutputStream(file).use { output ->
                         // https://stackoverflow.com/a/22646404
                         val buffer = ByteArray(1024)
                         var bytesRead: Int
-                        while (zip.read(buffer).also { bytesRead = it } != -1 &&
-                            bytesRead <= entry!!.size) {
+                        while (zip.read(buffer).also { bytesRead = it } != -1 && bytesRead <= entry!!.size) {
                             output.write(buffer, 0, bytesRead)
                         }
                     }
@@ -313,7 +294,7 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
                     ByteArrayInputStream(Base64Coder.decode(string))
                 } catch (e: Exception) {
                     return@withContext Result.failure(e)
-                },
+                }
             )
         }
 
@@ -341,9 +322,7 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
             val length = data.readByte()
             for (i in 0 until length) {
                 val name = data.readUTF()
-                val block =
-                    Vars.content.getByName<Block>(
-                        ContentType.block, SaveFileReader.fallback[name, name])
+                val block = Vars.content.getByName<Block>(ContentType.block, SaveFileReader.fallback[name, name])
                 blocks.put(i, if (block == null || block is LegacyBlock) Blocks.air else block)
             }
 
@@ -358,13 +337,7 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
                 val rotation = data.readByte()
                 if (block !== Blocks.air) {
                     tiles.add(
-                        Schematic.Stile(
-                            block,
-                            Point2.x(position).toInt(),
-                            Point2.y(position).toInt(),
-                            config,
-                            rotation,
-                        ),
+                        Schematic.Stile(block, Point2.x(position).toInt(), Point2.y(position).toInt(), config, rotation)
                     )
                 }
             }
@@ -376,26 +349,18 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
     override suspend fun getSchematicPreview(schematic: Schematic): Result<BufferedImage> =
         withContext(SCHEMATIC_PREVIEW_SCOPE.coroutineContext) {
             runCatching {
-                if (schematic.width > MAX_SCHEMATIC_SIDE_SIZE ||
-                    schematic.height > MAX_SCHEMATIC_SIDE_SIZE) {
+                if (schematic.width > MAX_SCHEMATIC_SIDE_SIZE || schematic.height > MAX_SCHEMATIC_SIDE_SIZE) {
                     throw IOException(
-                        "Schematic cannot be larger than $MAX_SCHEMATIC_SIDE_SIZE x $MAX_SCHEMATIC_SIDE_SIZE.")
+                        "Schematic cannot be larger than $MAX_SCHEMATIC_SIDE_SIZE x $MAX_SCHEMATIC_SIDE_SIZE."
+                    )
                 }
 
-                val image =
-                    BufferedImage(
-                        schematic.width * 32, schematic.height * 32, BufferedImage.TYPE_INT_ARGB)
+                val image = BufferedImage(schematic.width * 32, schematic.height * 32, BufferedImage.TYPE_INT_ARGB)
 
                 Draw.reset()
                 val requests =
                     schematic.tiles.map {
-                        BuildPlan(
-                            it.x.toInt(),
-                            it.y.toInt(),
-                            it.rotation.toInt(),
-                            it.block,
-                            it.config,
-                        )
+                        BuildPlan(it.x.toInt(), it.y.toInt(), it.rotation.toInt(), it.block, it.config)
                     }
 
                 currentSchematicGraphics = image.createGraphics()
@@ -423,8 +388,7 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
                     stream.writeShort(schematic.width)
                     stream.writeShort(schematic.height)
                     val tags = StringMap().apply { putAll(schematic.tags) }
-                    tags.put(
-                        "labels", JsonIO.write(schematic.labels.toArray<Any>(String::class.java)))
+                    tags.put("labels", JsonIO.write(schematic.labels.toArray<Any>(String::class.java)))
                     stream.writeByte(tags.size)
                     for (e in tags.entries()) {
                         stream.writeUTF(e.key)
@@ -451,20 +415,16 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
         }
 
     override suspend fun getMapMetadata(stream: InputStream): Result<MapMetadata> =
-        withContext(ImperiumScope.IO.coroutineContext) {
-            getMapMetadataWithPreview0(stream, false).map { it.first }
-        }
+        withContext(ImperiumScope.IO.coroutineContext) { getMapMetadataWithPreview0(stream, false).map { it.first } }
 
-    override suspend fun getMapMetadataWithPreview(
-        stream: InputStream
-    ): Result<Pair<MapMetadata, BufferedImage>> =
+    override suspend fun getMapMetadataWithPreview(stream: InputStream): Result<Pair<MapMetadata, BufferedImage>> =
         withContext(MAP_PREVIEW_SCOPE.coroutineContext) {
             getMapMetadataWithPreview0(stream, true).map { it.first to it.second!! }
         }
 
     private fun getMapMetadataWithPreview0(
         input: InputStream,
-        preview: Boolean
+        preview: Boolean,
     ): Result<Pair<MapMetadata, BufferedImage?>> = runCatching {
         val counter = CounterInputStream(InflaterInputStream(input))
         val stream = DataInputStream(counter)
@@ -543,25 +503,17 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
                                 return tile
                             }
 
-                            override fun create(
-                                x: Int,
-                                y: Int,
-                                floorID: Int,
-                                overlayID: Int,
-                                wallID: Int
-                            ): Tile {
+                            override fun create(x: Int, y: Int, floorID: Int, overlayID: Int, wallID: Int): Tile {
                                 floors.setRGB(
                                     x,
                                     floors.height - 1 - y,
                                     conv(
                                         MapIO.colorFor(
                                             Blocks.air,
-                                            if (overlayID != 0) Blocks.air
-                                            else Vars.content.block(floorID),
-                                            if (overlayID != 0) Vars.content.block(overlayID)
-                                            else Blocks.air,
+                                            if (overlayID != 0) Blocks.air else Vars.content.block(floorID),
+                                            if (overlayID != 0) Vars.content.block(overlayID) else Blocks.air,
                                             Team.derelict,
-                                        ),
+                                        )
                                     ),
                                 )
                                 return tile
@@ -576,9 +528,7 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
             }
         }
 
-        val metadata =
-            MapMetadata(
-                name, description, author, width, height, meta.associate { it.key to it.value })
+        val metadata = MapMetadata(name, description, author, width, height, meta.associate { it.key to it.value })
         return@runCatching metadata to floors
     }
 
@@ -615,10 +565,8 @@ class AnukenMindustryContentHandler(directory: Path, private val config: Discord
 
     companion object {
         private val logger by LoggerDelegate()
-        private val SCHEMATIC_PREVIEW_SCOPE =
-            CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
-        private val MAP_PREVIEW_SCOPE =
-            CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+        private val SCHEMATIC_PREVIEW_SCOPE = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+        private val MAP_PREVIEW_SCOPE = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
         private val SCHEMATIC_HEADER =
             byteArrayOf('m'.code.toByte(), 's'.code.toByte(), 'c'.code.toByte(), 'h'.code.toByte())
         private const val MAX_SCHEMATIC_SIDE_SIZE = 256

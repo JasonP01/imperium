@@ -17,12 +17,14 @@
  */
 package com.xpdustry.imperium.mindustry.security
 
-import com.xpdustry.distributor.api.DistributorProvider
+import com.xpdustry.distributor.api.Distributor
 import com.xpdustry.distributor.api.annotation.EventHandler
 import com.xpdustry.distributor.api.command.CommandSender
 import com.xpdustry.distributor.api.player.MUUID
+import com.xpdustry.imperium.common.account.AccountManager
 import com.xpdustry.imperium.common.account.Rank
 import com.xpdustry.imperium.common.application.ImperiumApplication
+import com.xpdustry.imperium.common.async.ImperiumScope
 import com.xpdustry.imperium.common.command.ImperiumCommand
 import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.inject.InstanceManager
@@ -35,6 +37,7 @@ import com.xpdustry.imperium.common.security.Punishment
 import com.xpdustry.imperium.common.security.PunishmentManager
 import com.xpdustry.imperium.common.security.SimpleRateLimiter
 import com.xpdustry.imperium.common.user.UserManager
+import com.xpdustry.imperium.mindustry.account.PlayerLoginEvent
 import com.xpdustry.imperium.mindustry.command.annotation.ClientSide
 import com.xpdustry.imperium.mindustry.command.vote.AbstractVoteCommand
 import com.xpdustry.imperium.mindustry.command.vote.Vote
@@ -42,6 +45,7 @@ import com.xpdustry.imperium.mindustry.command.vote.VoteManager
 import com.xpdustry.imperium.mindustry.misc.Entities
 import com.xpdustry.imperium.mindustry.misc.identity
 import com.xpdustry.imperium.mindustry.misc.runMindustryThread
+import com.xpdustry.imperium.mindustry.misc.sessionKey
 import com.xpdustry.imperium.mindustry.ui.Interface
 import com.xpdustry.imperium.mindustry.ui.action.Action
 import com.xpdustry.imperium.mindustry.ui.action.BiAction
@@ -51,10 +55,11 @@ import com.xpdustry.imperium.mindustry.ui.menu.createPlayerListTransformer
 import com.xpdustry.imperium.mindustry.ui.state.stateKey
 import java.net.InetAddress
 import java.util.Collections
-import kotlin.math.roundToInt
+import kotlin.math.ceil
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
+import kotlinx.coroutines.launch
 import mindustry.Vars
 import mindustry.core.NetServer
 import mindustry.game.EventType
@@ -67,22 +72,22 @@ import org.incendo.cloud.annotation.specifier.Greedy
 data class VotekickEvent(val target: Player, val type: Type) {
     enum class Type {
         START,
-        CLOSE
+        CLOSE,
     }
 }
 
 class VoteKickCommand(instances: InstanceManager) :
-    AbstractVoteCommand<VoteKickCommand.Context>(instances.get(), "votekick", 1.minutes),
-    ImperiumApplication.Listener {
+    AbstractVoteCommand<VoteKickCommand.Context>(instances.get(), "votekick", 1.minutes), ImperiumApplication.Listener {
 
     private val punishments = instances.get<PunishmentManager>()
     private val limiter = SimpleRateLimiter<InetAddress>(1, 60.seconds)
     private val votekickInterface = createVotekickInterface()
     private val config = instances.get<ImperiumConfig>()
     private val users = instances.get<UserManager>()
+    private val marks = instances.get<MarkedPlayerManager>()
+    private val accounts = instances.get<AccountManager>()
     private val recentBans =
-        Collections.newSetFromMap(
-            buildCache<MUUID, Boolean> { expireAfterWrite(1.minutes.toJavaDuration()) }.asMap())
+        Collections.newSetFromMap(buildCache<MUUID, Boolean> { expireAfterWrite(1.minutes.toJavaDuration()) }.asMap())
 
     @EventHandler
     internal fun onPlayerBanEvent(event: PlayerBanEvent) {
@@ -95,6 +100,20 @@ class VoteKickCommand(instances: InstanceManager) :
         manager.sessions.values
             .filter { it.objective.target == event.player }
             .forEach(VoteManager.Session<Context>::success)
+    }
+
+    @EventHandler
+    internal fun onPlayerLogin(event: PlayerLoginEvent) {
+        ImperiumScope.MAIN.launch {
+            val rank = accounts.selectBySession(event.player.sessionKey)?.rank
+            if (rank != null && rank >= Rank.OVERSEER) {
+                runMindustryThread {
+                    manager.sessions.values
+                        .filter { it.objective.target == event.player }
+                        .forEach { it.failure(event.player) }
+                }
+            }
+        }
     }
 
     @ImperiumCommand(["vote", "y"])
@@ -117,11 +136,7 @@ class VoteKickCommand(instances: InstanceManager) :
 
     @ImperiumCommand(["votekick"])
     @ClientSide
-    fun onVotekickCommand(
-        sender: CommandSender,
-        target: Player? = null,
-        @Greedy reason: String? = null
-    ) {
+    fun onVotekickCommand(sender: CommandSender, target: Player? = null, @Greedy reason: String? = null) {
         if (!Administration.Config.enableVotekick.bool()) {
             sender.player.sendMessage("[scarlet]Vote-kick is disabled on this server.")
             return
@@ -130,32 +145,28 @@ class VoteKickCommand(instances: InstanceManager) :
             votekickInterface.open(sender.player)
             return
         }
-        if (Entities.getPlayers()
-            .filter { !Vars.state.rules.pvp || it.team() == sender.player.team() }
-            .size < 3) {
+        if (Entities.getPlayers().filter { !Vars.state.rules.pvp || it.team() == sender.player.team() }.size < 3) {
             sender.player.sendMessage(
                 """
                 [scarlet]At least 3 players are needed to start a votekick.
                 Use the [orange]/report[] command instead.
                 """
-                    .trimIndent(),
+                    .trimIndent()
             )
             return
         }
         if (reason == null) {
             sender.player.sendMessage(
-                "[orange]You need a valid reason to kick the player. Add a reason after the player name.")
+                "[orange]You need a valid reason to kick the player. Add a reason after the player name."
+            )
             return
         }
-        onVoteSessionStart(
-            sender.player, getSession(target.team()), Context(target, reason, sender.player.team()))
+        onVoteSessionStart(sender.player, getSession(target.team()), Context(target, reason, sender.player.team()))
     }
 
     override suspend fun onVoteSessionSuccess(session: VoteManager.Session<Context>) {
         runMindustryThread {
-            DistributorProvider.get()
-                .eventBus
-                .post(VotekickEvent(session.objective.target, VotekickEvent.Type.CLOSE))
+            Distributor.get().eventBus.post(VotekickEvent(session.objective.target, VotekickEvent.Type.CLOSE))
         }
         val yes = mutableSetOf<MindustryUUIDAsLong>()
         val nay = mutableSetOf<MindustryUUIDAsLong>()
@@ -168,18 +179,16 @@ class VoteKickCommand(instances: InstanceManager) :
             "Votekick: ${session.objective.reason}",
             Punishment.Type.BAN,
             NetServer.kickDuration.seconds,
-            Punishment.Metadata.Votekick(session.initiator!!.uuid().toLongMuuid(), yes, nay))
+            Punishment.Metadata.Votekick(session.initiator!!.uuid().toLongMuuid(), yes, nay),
+        )
     }
 
     override suspend fun onVoteSessionFailure(session: VoteManager.Session<Context>) {
         runMindustryThread {
-            DistributorProvider.get()
-                .eventBus
-                .post(VotekickEvent(session.objective.target, VotekickEvent.Type.CLOSE))
+            Distributor.get().eventBus.post(VotekickEvent(session.objective.target, VotekickEvent.Type.CLOSE))
         }
         // TODO Move to PunishmentListener
-        session.objective.target.sendMessage(
-            "[sky]You are no longer involved in a vote kick, you have been unfrozen.")
+        session.objective.target.sendMessage("[sky]You are no longer involved in a vote kick, you have been unfrozen.")
     }
 
     override fun canParticipantStart(player: Player, objective: Context): Boolean {
@@ -193,20 +202,14 @@ class VoteKickCommand(instances: InstanceManager) :
             player.sendMessage("[scarlet]You can't start a votekick on an admin.")
             return false
         } else if (!limiter.incrementAndCheck(player.ip().toInetAddress())) {
-            player.sendMessage(
-                "[scarlet]You are limited to one votekick per minute. Please try again later.")
+            player.sendMessage("[scarlet]You are limited to one votekick per minute. Please try again later.")
             return false
         }
-        DistributorProvider.get()
-            .eventBus
-            .post(VotekickEvent(objective.target, VotekickEvent.Type.START))
+        Distributor.get().eventBus.post(VotekickEvent(objective.target, VotekickEvent.Type.START))
         return true
     }
 
-    override fun canParticipantVote(
-        player: Player,
-        session: VoteManager.Session<Context>
-    ): Boolean {
+    override fun canParticipantVote(player: Player, session: VoteManager.Session<Context>): Boolean {
         if (session.objective.target == player) {
             player.sendMessage("[scarlet]You can't vote on your own trial.")
             return false
@@ -218,20 +221,24 @@ class VoteKickCommand(instances: InstanceManager) :
     }
 
     override fun getParticipants(session: VoteManager.Session<Context>): Sequence<Player> =
-        super.getParticipants(session).filter {
-            !Vars.state.rules.pvp || it.team() == session.objective.team
-        }
+        super.getParticipants(session).filter { !Vars.state.rules.pvp || it.team() == session.objective.team }
 
-    override fun getRequiredVotes(players: Int): Int =
-        if (players < 4) {
-            2
-        } else if (players < 5) {
-            3
-        } else if (players < 21) {
-            (players / 2F).roundToInt()
-        } else {
-            10
+    override fun getRequiredVotes(session: VoteManager.Session<Context>, players: Int): Int {
+        var required =
+            if (players < 4) {
+                2F
+            } else if (players < 5) {
+                3F
+            } else if (players < 21) {
+                (players / 2F)
+            } else {
+                10F
+            }
+        if (marks.isMarked(session.objective.target)) {
+            required /= 2F
         }
+        return ceil(required).toInt()
+    }
 
     override fun getVoteSessionDetails(session: VoteManager.Session<Context>): String =
         "[red]VK[]: Vote started to kick ${session.objective.target.name}[] out of the server. /vote y/n in order to vote. \nReason: ${session.objective.reason}."
@@ -247,8 +254,7 @@ class VoteKickCommand(instances: InstanceManager) :
                     pane.description = "Enter a reason for the votekick"
                     pane.inputAction = BiAction { view, input ->
                         view.closeAll()
-                        Action.command("votekick", "#" + view.state[VOTEKICK_TARGET]!!.id, input)
-                            .accept(view)
+                        Action.command("votekick", "#" + view.state[VOTEKICK_TARGET]!!.id, input).accept(view)
                     }
                 }
             }
@@ -263,7 +269,8 @@ class VoteKickCommand(instances: InstanceManager) :
                     createPlayerListTransformer { view, player ->
                         view.state[VOTEKICK_TARGET] = player
                         reasonInterface.open(view)
-                    })
+                    }
+                )
             }
 
         return playerListInterface

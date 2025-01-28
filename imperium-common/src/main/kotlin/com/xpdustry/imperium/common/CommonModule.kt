@@ -24,14 +24,12 @@ import com.xpdustry.imperium.common.account.SimpleAccountManager
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.bridge.PlayerTracker
 import com.xpdustry.imperium.common.bridge.RequestingPlayerTracker
-import com.xpdustry.imperium.common.config.DatabaseConfig
 import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.config.ImperiumConfigProvider
 import com.xpdustry.imperium.common.config.MessengerConfig
+import com.xpdustry.imperium.common.config.MetricConfig
 import com.xpdustry.imperium.common.config.NetworkConfig
 import com.xpdustry.imperium.common.config.StorageConfig
-import com.xpdustry.imperium.common.config.TranslatorConfig
-import com.xpdustry.imperium.common.config.WebhookConfig
 import com.xpdustry.imperium.common.content.MindustryMapManager
 import com.xpdustry.imperium.common.content.SimpleMindustryMapManager
 import com.xpdustry.imperium.common.database.IdentifierCodec
@@ -44,6 +42,8 @@ import com.xpdustry.imperium.common.inject.provider
 import com.xpdustry.imperium.common.message.Messenger
 import com.xpdustry.imperium.common.message.NoopMessenger
 import com.xpdustry.imperium.common.message.RabbitmqMessenger
+import com.xpdustry.imperium.common.metrics.InfluxDBRegistry
+import com.xpdustry.imperium.common.metrics.MetricsRegistry
 import com.xpdustry.imperium.common.network.Discovery
 import com.xpdustry.imperium.common.network.SimpleDiscovery
 import com.xpdustry.imperium.common.network.VpnApiIoDetection
@@ -57,14 +57,11 @@ import com.xpdustry.imperium.common.storage.MinioStorageBucket
 import com.xpdustry.imperium.common.storage.StorageBucket
 import com.xpdustry.imperium.common.time.SimpleTimeRenderer
 import com.xpdustry.imperium.common.time.TimeRenderer
-import com.xpdustry.imperium.common.translator.DeeplTranslator
-import com.xpdustry.imperium.common.translator.LibreTranslateTranslator
-import com.xpdustry.imperium.common.translator.Translator
 import com.xpdustry.imperium.common.user.SimpleUserManager
 import com.xpdustry.imperium.common.user.UserManager
 import com.xpdustry.imperium.common.version.ImperiumVersion
-import com.xpdustry.imperium.common.webhook.DiscordWebhookMessageSender
 import com.xpdustry.imperium.common.webhook.WebhookMessageSender
+import com.xpdustry.imperium.common.webhook.WebhookMessageSenderImpl
 import java.nio.file.Path
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
@@ -75,15 +72,7 @@ import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 
 fun MutableInstanceManager.registerCommonModule() {
-    provider(ImperiumConfigProvider())
-
-    provider<Translator> {
-        when (val config = get<ImperiumConfig>().translator) {
-            is TranslatorConfig.None -> Translator.Noop
-            is TranslatorConfig.LibreTranslate -> LibreTranslateTranslator(config, get())
-            is TranslatorConfig.DeepL -> DeeplTranslator(config, get())
-        }
-    }
+    provider(ImperiumConfigProvider)
 
     provider<Discovery> { SimpleDiscovery(get(), get("discovery"), get()) }
 
@@ -101,11 +90,7 @@ fun MutableInstanceManager.registerCommonModule() {
         }
     }
 
-    provider<SQLProvider> {
-        when (val config = get<ImperiumConfig>().database) {
-            is DatabaseConfig.SQL -> SimpleSQLProvider(config, get("directory"))
-        }
-    }
+    provider<SQLProvider> { SimpleSQLProvider(get<ImperiumConfig>().database, get("directory")) }
 
     provider<AccountManager> { SimpleAccountManager(get(), get(), get()) }
 
@@ -126,10 +111,10 @@ fun MutableInstanceManager.registerCommonModule() {
                     // The default executor blocks the exit in Mindustry
                     Executors.newFixedThreadPool(
                         Runtime.getRuntime().availableProcessors(),
-                        ThreadFactoryBuilder()
-                            .setDaemon(true)
-                            .setNameFormat("imperium-okhttp-%d")
-                            .build())))
+                        ThreadFactoryBuilder().setDaemon(true).setNameFormat("imperium-okhttp-%d").build(),
+                    )
+                )
+            )
             .build()
     }
 
@@ -143,13 +128,7 @@ fun MutableInstanceManager.registerCommonModule() {
 
     provider<TimeRenderer> { SimpleTimeRenderer(get()) }
 
-    provider<WebhookMessageSender> {
-        when (val webhookConfig = get<ImperiumConfig>().webhook) {
-            is WebhookConfig.None -> WebhookMessageSender.None
-            is WebhookConfig.Discord ->
-                DiscordWebhookMessageSender(get(), get(), webhookConfig, get())
-        }
-    }
+    provider<WebhookMessageSender> { WebhookMessageSenderImpl(get(), get(), get()) }
 
     provider<AddressWhitelist> { SimpleAddressWhitelist(get()) }
 
@@ -159,6 +138,14 @@ fun MutableInstanceManager.registerCommonModule() {
         when (val config = get<ImperiumConfig>().storage) {
             is StorageConfig.Local -> LocalStorageBucket(get<Path>("directory").resolve("storage"))
             is StorageConfig.Minio -> MinioStorageBucket(config, get())
+        }
+    }
+
+    provider<MetricsRegistry> {
+        val config = get<ImperiumConfig>()
+        when (config.metrics) {
+            is MetricConfig.InfluxDB -> InfluxDBRegistry(config.server, config.metrics, get())
+            is MetricConfig.None -> MetricsRegistry.None
         }
     }
 }

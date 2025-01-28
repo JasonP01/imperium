@@ -25,7 +25,7 @@ import com.xpdustry.imperium.common.account.Rank
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.async.ImperiumScope
 import com.xpdustry.imperium.common.command.ImperiumCommand
-import com.xpdustry.imperium.common.config.MindustryConfig
+import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.content.MindustryGamemode
 import com.xpdustry.imperium.common.inject.InstanceManager
 import com.xpdustry.imperium.common.inject.get
@@ -66,13 +66,13 @@ class ExcavateCommand(instances: InstanceManager) :
     ImperiumApplication.Listener {
 
     private val areas = PlayerMap<ExcavateArea>(instances.get())
-    private val config = instances.get<MindustryConfig>()
+    private val config = instances.get<ImperiumConfig>()
     private lateinit var item: Item
 
     override fun onImperiumInit() {
         item =
-            Vars.content.item(config.world.excavationItem)
-                ?: error("${config.world.excavationItem} is not a valid mindustry item.")
+            Vars.content.item(config.mindustry.world.excavationItem)
+                ?: error("${config.mindustry.world.excavationItem} is not a valid mindustry item.")
         ImperiumScope.MAIN.launch {
             while (isActive) {
                 delay(1.seconds)
@@ -106,10 +106,9 @@ class ExcavateCommand(instances: InstanceManager) :
         if (other != UNSET_POINT) {
             val dx = abs(point.x - other.x)
             val dy = abs(point.y - other.y)
-            if (dx >= config.world.maxExcavateSize || dy >= config.world.maxExcavateSize) {
+            if (dx >= config.mindustry.world.maxExcavateSize || dy >= config.mindustry.world.maxExcavateSize) {
                 areas[event.player] = ExcavateArea()
-                event.player.sendMessage(
-                    "The chosen excavation point is too far from the other point, try again!")
+                event.player.sendMessage("The chosen excavation point is too far from the other point, try again!")
                 return
             }
         }
@@ -131,7 +130,8 @@ class ExcavateCommand(instances: InstanceManager) :
     @ClientSide
     private fun onOldExcavateStartCommand(sender: CommandSender) {
         sender.player.sendMessage(
-            "This command has been changed to just '[accent]/excavate[]' or '[accent]/e[]', use those instead.")
+            "This command has been changed to just '[accent]/excavate[]' or '[accent]/e[]', use those instead."
+        )
     }
 
     @ImperiumCommand(["excavate|e"])
@@ -169,7 +169,7 @@ class ExcavateCommand(instances: InstanceManager) :
         for (x in area.x1..area.x2) {
             for (y in area.y1..area.y2) {
                 if (Vars.world.tile(x, y).block()?.isStatic == true) {
-                    price += config.world.excavationTilePrice
+                    price += config.mindustry.world.excavationTilePrice
                 }
             }
         }
@@ -188,7 +188,8 @@ class ExcavateCommand(instances: InstanceManager) :
                 [scarlet]You do not have enough ${item.name} to do that.
                 You currently have [orange]${items.get(item)}[] ${item.name} but [orange]${price - items.get(item)}[] more is needed.
                 """
-                    .trimIndent())
+                    .trimIndent()
+            )
             return
         }
 
@@ -230,7 +231,7 @@ class ExcavateCommand(instances: InstanceManager) :
         return "Type [accent]/e y[] to remove the walls in-between [red](${area.x1}, ${area.y1})[] and[red] (${area.x2}, ${area.y2}).\n[]This will use ${session.objective.price} ${item.name} and you have ${Vars.state.rules.defaultTeam.items().get(item)} ${item.name}"
     }
 
-    override fun getRequiredVotes(players: Int): Int =
+    override fun getRequiredVotes(session: VoteManager.Session<ExcavateData>, players: Int): Int =
         when (Entities.getPlayers().size) {
             0 -> 0
             1 -> 1
@@ -264,11 +265,11 @@ class ExcavateCommand(instances: InstanceManager) :
                         x.toFloat() * Vars.tilesize,
                         y.toFloat() * Vars.tilesize,
                         0F,
-                        Color.white)
+                        Color.white,
+                    )
                 }
                 val cx = area.x1 + ((area.x2 - area.x1) / 2F) * Vars.tilesize
-                Call.soundAt(
-                    Sounds.place, cx, y.toFloat() * Vars.tilesize, 1F, getNextPitch(sequence))
+                Call.soundAt(Sounds.place, cx, y.toFloat() * Vars.tilesize, 1F, getNextPitch(sequence))
             }
         }
         Call.sendMessage("The excavation has finished!")
@@ -306,23 +307,14 @@ class ExcavateCommand(instances: InstanceManager) :
         for (y in area.y1..area.y2) {
             for (x in area.x1..area.x2) {
                 if (x == area.x1 || x == area.x2 || y == area.y1 || y == area.y2) {
-                    Call.label(
-                        Iconc.alphaaaa.toString(),
-                        1F,
-                        x.toFloat() * Vars.tilesize,
-                        y.toFloat() * Vars.tilesize,
-                    )
+                    Call.label(Iconc.alphaaaa.toString(), 1F, x.toFloat() * Vars.tilesize, y.toFloat() * Vars.tilesize)
                 }
             }
         }
         val mx = area.x1 + ((area.x2 - area.x1) / 2)
         val my = area.y1 + ((area.y2 - area.y1) / 2)
         val half = Vars.tilesize / 2F
-        Call.label(
-            "EXCAVATION SITE",
-            1F,
-            mx.toFloat() * Vars.tilesize + half,
-            my.toFloat() * Vars.tilesize + half)
+        Call.label("EXCAVATION SITE", 1F, mx.toFloat() * Vars.tilesize + half, my.toFloat() * Vars.tilesize + half)
     }
 
     private fun getNextPitch(sequence: AtomicInteger): Float {
@@ -338,7 +330,7 @@ class ExcavateCommand(instances: InstanceManager) :
     data class ExcavateArea(
         val p1: ImmutablePoint = UNSET_POINT,
         val p2: ImmutablePoint = UNSET_POINT,
-        val first: Boolean = true
+        val first: Boolean = true,
     ) {
         val x1 = min(p1.x, p2.x)
         val x2 = max(p1.x, p2.x)

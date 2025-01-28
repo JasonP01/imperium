@@ -17,7 +17,7 @@
  */
 package com.xpdustry.imperium.mindustry.ui
 
-import com.xpdustry.distributor.api.DistributorProvider
+import com.xpdustry.distributor.api.Distributor
 import com.xpdustry.distributor.api.player.MUUID
 import com.xpdustry.distributor.api.plugin.MindustryPlugin
 import com.xpdustry.distributor.api.util.Priority
@@ -30,10 +30,8 @@ import mindustry.game.EventType.PlayerLeave
 import mindustry.gen.Player
 
 abstract class AbstractTransformerInterface<P : Pane>
-protected constructor(
-    protected val plugin: MindustryPlugin,
-    private val paneProvider: Supplier<P>,
-) : TransformerInterface<P> {
+protected constructor(protected val plugin: MindustryPlugin, private val paneProvider: Supplier<P>) :
+    TransformerInterface<P> {
 
     private val _views: MutableMap<MUUID, SimpleView> = mutableMapOf()
     protected val views: Map<MUUID, SimpleView>
@@ -42,7 +40,7 @@ protected constructor(
     override val transformers: MutableList<PriorityTransformer<P>> = mutableListOf()
 
     init {
-        DistributorProvider.get().eventBus.subscribe(PlayerLeave::class.java, plugin) { event ->
+        Distributor.get().eventBus.subscribe(PlayerLeave::class.java, plugin) { event ->
             views[MUUID.from(event.player)]?.close()
         }
     }
@@ -63,8 +61,7 @@ protected constructor(
 
     protected open fun onViewClose(view: SimpleView) = Unit
 
-    protected inner class SimpleView(override val viewer: Player, override val parent: View?) :
-        View {
+    protected inner class SimpleView(override val viewer: Player, override val parent: View?) : View {
         override val state: State = parent?.state ?: stateOf()
 
         lateinit var pane: P

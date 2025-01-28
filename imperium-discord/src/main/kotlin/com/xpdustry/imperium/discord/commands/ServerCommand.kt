@@ -23,7 +23,8 @@ import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.bridge.PlayerTracker
 import com.xpdustry.imperium.common.command.ImperiumCommand
 import com.xpdustry.imperium.common.command.Lowercase
-import com.xpdustry.imperium.common.control.RestartMessage
+import com.xpdustry.imperium.common.control.RemoteActionMessage
+import com.xpdustry.imperium.common.control.toExitStatus
 import com.xpdustry.imperium.common.database.IdentifierCodec
 import com.xpdustry.imperium.common.inject.InstanceManager
 import com.xpdustry.imperium.common.inject.get
@@ -51,16 +52,13 @@ class ServerCommand(instances: InstanceManager) : ImperiumApplication.Listener {
             .replyEmbeds(
                 Embed {
                     title = "Server List"
-                    description =
-                        discovery.servers.values.joinToString(separator = "\n") { "- ${it.name}" }
-                })
+                    description = discovery.servers.values.joinToString(separator = "\n") { "- ${it.name}" }
+                }
+            )
             .await()
 
     @ImperiumCommand(["player", "joins"])
-    suspend fun onServerPlayerJoin(
-        interaction: SlashCommandInteraction,
-        @Lowercase server: String
-    ) {
+    suspend fun onServerPlayerJoin(interaction: SlashCommandInteraction, @Lowercase server: String) {
         val reply = interaction.deferReply(false).await()
         val joins = tracker.getPlayerJoins(server)
         if (joins == null) {
@@ -71,10 +69,7 @@ class ServerCommand(instances: InstanceManager) : ImperiumApplication.Listener {
     }
 
     @ImperiumCommand(["player", "online"])
-    suspend fun onServerPlayerOnline(
-        interaction: SlashCommandInteraction,
-        @Lowercase server: String? = null
-    ) {
+    suspend fun onServerPlayerOnline(interaction: SlashCommandInteraction, @Lowercase server: String? = null) {
         val reply = interaction.deferReply(false).await()
         if (server != null) {
             val online = tracker.getOnlinePlayers(server)
@@ -89,34 +84,43 @@ class ServerCommand(instances: InstanceManager) : ImperiumApplication.Listener {
                 if (value.data is Discovery.Data.Mindustry) {
                     val players = tracker.getOnlinePlayers(key) ?: emptyList()
                     if (players.isNotEmpty()) {
-                        embeds +=
-                            createPlayerListEmbed(players, "Online", time = false, server = key)
+                        embeds += createPlayerListEmbed(players, "Online", time = false, server = key)
                     }
                 }
             }
-            reply.sendMessageEmbeds(embeds).await()
+            if (embeds.isEmpty()) {
+                reply.sendMessage("No players online at all :(").await()
+            } else {
+                reply.sendMessageEmbeds(embeds).await()
+            }
         }
     }
 
-    @ImperiumCommand(["server", "restart"], Rank.ADMIN)
-    suspend fun onServerRestart(
+    // TODO The following code works but its turbo shit, fixit!!
+    @ImperiumCommand(["server", "control"], Rank.ADMIN)
+    suspend fun onServerControl(
         interaction: SlashCommandInteraction,
-        @Lowercase server: String,
-        immediate: Boolean = false
+        action: RemoteActionMessage.Action,
+        @Lowercase server: String? = null,
+        immediate: Boolean = false,
     ) {
         val reply = interaction.deferReply(false).await()
         if (server == "discord") {
             reply.sendMessage("Restarting discord bot.").await()
-            application.exit(ExitStatus.RESTART)
+            application.exit(action.toExitStatus())
             return
-        } else {
-            if (discovery.servers[server] == null) {
-                reply.sendMessage("Server not found.").await()
-                return
-            }
-            messenger.publish(RestartMessage(server, immediate))
-            reply.sendMessage("Sent restart request to server **$server**.").await()
         }
+        if (server != null && discovery.servers[server] == null) {
+            reply.sendMessage("Server not found.").await()
+            return
+        }
+        messenger.publish(RemoteActionMessage(server, action, immediate))
+        reply
+            .sendMessage(
+                "Sent ${action.name.lowercase()} request to " +
+                    if (server == null) "**all servers**" else "server **$server**."
+            )
+            .await()
     }
 
     @ImperiumCommand(["exit"], Rank.OWNER)
@@ -129,7 +133,7 @@ class ServerCommand(instances: InstanceManager) : ImperiumApplication.Listener {
         list: List<PlayerTracker.Entry>,
         name: String,
         time: Boolean = true,
-        server: String? = null
+        server: String? = null,
     ) = Embed {
         title = "Player $name List"
         if (server != null) {

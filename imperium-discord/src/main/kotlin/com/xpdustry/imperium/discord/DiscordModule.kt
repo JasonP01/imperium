@@ -18,8 +18,6 @@
 package com.xpdustry.imperium.discord
 
 import com.xpdustry.imperium.common.annotation.AnnotationScanner
-import com.xpdustry.imperium.common.config.DiscordConfig
-import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.inject.MutableInstanceManager
 import com.xpdustry.imperium.common.inject.get
 import com.xpdustry.imperium.common.inject.provider
@@ -41,7 +39,7 @@ fun MutableInstanceManager.registerDiscordModule() {
 
     provider<Path>("directory") { Path(".") }
 
-    provider<AnnotationScanner>("slash") { SlashCommandRegistry(get(), get(), get()) }
+    provider<AnnotationScanner>("slash") { SlashCommandRegistry(get(), get()) }
 
     provider<AnnotationScanner>("menu") { MenuCommandRegistry(get()) }
 
@@ -49,14 +47,9 @@ fun MutableInstanceManager.registerDiscordModule() {
 
     provider<MindustryContentHandler> { AnukenMindustryContentHandler(get("directory"), get()) }
 
-    provider<DiscordConfig> {
-        get<ImperiumConfig>().discord ?: error("The current server configuration is not Discord")
-    }
-
     provider<Supplier<Discovery.Data>>("discovery") { Supplier { Discovery.Data.Discord } }
 
     provider<ImperiumVersion> {
-        ImperiumVersion.parse(
-            this::class.java.getResourceAsStream("/imperium-version.txt")!!.reader().readText())
+        ImperiumVersion.parse(this::class.java.getResourceAsStream("/imperium-version.txt")!!.reader().readText())
     }
 }

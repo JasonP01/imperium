@@ -32,11 +32,10 @@ import com.xpdustry.imperium.common.message.Messenger
 import com.xpdustry.imperium.common.message.TestMessenger
 import com.xpdustry.imperium.common.misc.exists
 import com.xpdustry.imperium.common.registerCommonModule
-import com.xpdustry.imperium.common.security.Identity
 import java.net.InetAddress
 import java.nio.file.Path
 import java.time.Duration
-import java.util.Base64
+import java.util.UUID
 import kotlin.random.Random
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.batchInsert
@@ -47,6 +46,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -75,22 +75,13 @@ class SimpleAccountManagerTest {
     fun `test simple registration`() = runTest {
         val username = randomUsername()
 
-        assertInstanceOf(
-            AccountResult.InvalidPassword::class.java,
-            manager.register(username, INVALID_PASSWORD),
-        )
+        assertInstanceOf(AccountResult.InvalidPassword::class.java, manager.register(username, INVALID_PASSWORD))
 
-        assertEquals(
-            AccountResult.Success,
-            manager.register(username, TEST_PASSWORD_1),
-        )
+        assertEquals(AccountResult.Success, manager.register(username, TEST_PASSWORD_1))
 
-        assertEquals(
-            AccountResult.AlreadyRegistered,
-            manager.register(username, TEST_PASSWORD_1),
-        )
+        assertEquals(AccountResult.AlreadyRegistered, manager.register(username, TEST_PASSWORD_1))
 
-        val account = manager.findByUsername(username)
+        val account = manager.selectByUsername(username)
         assertNotNull(account)
         assertEquals(username, account!!.username)
     }
@@ -100,19 +91,16 @@ class SimpleAccountManagerTest {
         val username = randomUsername()
         val discord = Random.nextLong()
 
-        assertEquals(AccountResult.NotFound, manager.updateDiscord(10, discord))
+        assertFalse(manager.updateDiscord(10, discord))
 
         assertEquals(AccountResult.Success, manager.register(username, TEST_PASSWORD_1))
 
-        val account = manager.findByUsername(username)!!
-        assertNull(manager.findByDiscord(discord))
+        val account = manager.selectByUsername(username)!!
+        assertNull(manager.selectByDiscord(discord))
 
-        assertEquals(
-            AccountResult.Success,
-            manager.updateDiscord(account.id, discord),
-        )
+        assertTrue(manager.updateDiscord(account.id, discord))
 
-        val result = manager.findByDiscord(discord)
+        val result = manager.selectByDiscord(discord)
         assertEquals(discord, result?.discord)
         assertEquals(account.copy(discord = discord), result)
     }
@@ -120,59 +108,49 @@ class SimpleAccountManagerTest {
     @Test
     fun `test session flow`() = runTest {
         val username = randomUsername()
-        val identity = randomPlayerIdentity()
+        val sessionKey = randomSessionKey()
 
-        assertEquals(AccountResult.NotFound, manager.logout(identity))
+        assertFalse(manager.logout(sessionKey))
 
-        assertEquals(
-            AccountResult.NotFound,
-            manager.login(username, TEST_PASSWORD_1, identity),
-        )
+        assertEquals(AccountResult.NotFound, manager.login(sessionKey, username, TEST_PASSWORD_1))
 
         assertEquals(AccountResult.Success, manager.register(username, TEST_PASSWORD_1))
 
-        assertEquals(
-            AccountResult.NotFound,
-            manager.login(username, TEST_PASSWORD_2, identity),
-        )
+        assertEquals(AccountResult.NotFound, manager.login(sessionKey, username, TEST_PASSWORD_2))
 
-        assertEquals(AccountResult.Success, manager.login(username, TEST_PASSWORD_1, identity))
+        assertEquals(AccountResult.Success, manager.login(sessionKey, username, TEST_PASSWORD_1))
 
-        val account = manager.findByUsername(username)
+        val account = manager.selectByUsername(username)
         assertNotNull(account)
-        assertEquals(account, manager.findByIdentity(identity))
+        assertEquals(account, manager.selectBySession(sessionKey))
 
-        assertEquals(AccountResult.Success, manager.logout(identity))
+        assertTrue(manager.logout(sessionKey))
 
-        assertNull(manager.findByIdentity(identity))
+        assertNull(manager.selectBySession(sessionKey))
     }
 
     @Test
     fun `test change password`() = runTest {
         val username = randomUsername()
-        val identity = randomPlayerIdentity()
+        val sessionKey = randomSessionKey()
 
-        assertEquals(
-            AccountResult.NotFound,
-            manager.changePassword(TEST_PASSWORD_1, TEST_PASSWORD_2, identity))
+        assertEquals(AccountResult.NotFound, manager.updatePassword(1, TEST_PASSWORD_1, TEST_PASSWORD_2))
 
         assertEquals(AccountResult.Success, manager.register(username, TEST_PASSWORD_1))
-        assertEquals(AccountResult.Success, manager.login(username, TEST_PASSWORD_1, identity))
+        val account = manager.selectByUsername(username)!!.id
+        assertEquals(AccountResult.Success, manager.login(sessionKey, username, TEST_PASSWORD_1))
 
         assertInstanceOf(
             AccountResult.InvalidPassword::class.java,
-            manager.changePassword(TEST_PASSWORD_1, INVALID_PASSWORD, identity))
+            manager.updatePassword(account, TEST_PASSWORD_1, INVALID_PASSWORD),
+        )
 
-        assertEquals(
-            AccountResult.WrongPassword,
-            manager.changePassword(TEST_PASSWORD_2, TEST_PASSWORD_1, identity))
+        assertEquals(AccountResult.WrongPassword, manager.updatePassword(account, TEST_PASSWORD_2, TEST_PASSWORD_1))
 
-        assertEquals(
-            AccountResult.Success,
-            manager.changePassword(TEST_PASSWORD_1, TEST_PASSWORD_2, identity))
+        assertEquals(AccountResult.Success, manager.updatePassword(account, TEST_PASSWORD_1, TEST_PASSWORD_2))
 
-        assertEquals(AccountResult.Success, manager.logout(identity))
-        assertEquals(AccountResult.Success, manager.login(username, TEST_PASSWORD_2, identity))
+        assertTrue(manager.logout(sessionKey))
+        assertEquals(AccountResult.Success, manager.login(sessionKey, username, TEST_PASSWORD_2))
     }
 
     @Test
@@ -182,19 +160,16 @@ class SimpleAccountManagerTest {
         val newUsername = randomUsername()
         val games = 10
         val playtime = Duration.ofHours(10L)
-        val achievements = listOf(Account.Achievement.ACTIVE, Account.Achievement.MONTH)
+        val achievements = listOf(Achievement.ACTIVE, Achievement.MONTH)
 
-        assertEquals(
-            AccountResult.NotFound, manager.migrate(oldUsername, newUsername, TEST_PASSWORD_1))
+        assertEquals(AccountResult.NotFound, manager.migrate(oldUsername, newUsername, TEST_PASSWORD_1))
 
         val provider = application.instances.get<SQLProvider>()
         val id =
             provider.newSuspendTransaction {
-                val hashedUsername =
-                    ShaHashFunction.create(oldUsername.toCharArray(), ShaType.SHA256).hash
+                val hashedUsername = ShaHashFunction.create(oldUsername.toCharArray(), ShaType.SHA256).hash
                 val hashedPassword =
-                    GenericSaltyHashFunction.create(
-                        TEST_PASSWORD_1, SimpleAccountManager.LEGACY_PASSWORD_PARAMS)
+                    GenericSaltyHashFunction.create(TEST_PASSWORD_1, SimpleAccountManager.LEGACY_PASSWORD_PARAMS)
 
                 val id =
                     LegacyAccountTable.insertAndGetId {
@@ -217,36 +192,18 @@ class SimpleAccountManagerTest {
         assertEquals(AccountResult.Success, manager.register(takenUsername, TEST_PASSWORD_1))
         assertInstanceOf(
             AccountResult.InvalidUsername::class.java,
-            manager.migrate(oldUsername, "XX_epyc_gaymer_XX", TEST_PASSWORD_1))
-        assertEquals(
-            AccountResult.AlreadyRegistered,
-            manager.migrate(oldUsername, takenUsername, TEST_PASSWORD_1))
-        assertEquals(
-            AccountResult.NotFound, manager.migrate(newUsername, oldUsername, TEST_PASSWORD_1))
-        assertEquals(
-            AccountResult.NotFound, manager.migrate(oldUsername, newUsername, TEST_PASSWORD_2))
-
-        assertEquals(
-            AccountResult.Success, manager.migrate(oldUsername, newUsername, TEST_PASSWORD_1))
-
-        assertFalse(
-            provider.newSuspendTransaction {
-                LegacyAccountTable.exists { LegacyAccountTable.id eq id }
-            })
-    }
-
-    private fun randomPlayerIdentity(): Identity.Mindustry {
-        val uuidBytes = ByteArray(16)
-        Random.nextBytes(uuidBytes)
-        val usidBytes = ByteArray(8)
-        Random.nextBytes(usidBytes)
-        return Identity.Mindustry(
-            Random.nextLong().toString(),
-            Base64.getEncoder().encodeToString(uuidBytes),
-            Base64.getEncoder().encodeToString(usidBytes),
-            InetAddress.getLoopbackAddress(),
+            manager.migrate(oldUsername, "XX_epyc_gaymer_XX", TEST_PASSWORD_1),
         )
+        assertEquals(AccountResult.AlreadyRegistered, manager.migrate(oldUsername, takenUsername, TEST_PASSWORD_1))
+        assertEquals(AccountResult.NotFound, manager.migrate(newUsername, oldUsername, TEST_PASSWORD_1))
+        assertEquals(AccountResult.NotFound, manager.migrate(oldUsername, newUsername, TEST_PASSWORD_2))
+
+        assertEquals(AccountResult.Success, manager.migrate(oldUsername, newUsername, TEST_PASSWORD_1))
+
+        assertFalse(provider.newSuspendTransaction { LegacyAccountTable.exists { LegacyAccountTable.id eq id } })
     }
+
+    private fun randomSessionKey() = SessionKey(Random.nextLong(), Random.nextLong(), InetAddress.getLoopbackAddress())
 
     private fun randomUsername(): String {
         val chars = CharArray(16)
@@ -258,9 +215,7 @@ class SimpleAccountManagerTest {
 
     private fun MutableInstanceManager.registerAccountTestModule() {
         provider<ImperiumConfig> {
-            ImperiumConfig(
-                database =
-                    DatabaseConfig.SQL(host = "mem:regular", type = DatabaseConfig.SQL.Type.H2))
+            ImperiumConfig(database = DatabaseConfig.H2(memory = true, database = UUID.randomUUID().toString()))
         }
         provider<Messenger> { TestMessenger() }
         provider<Path>("directory") { tempDir }

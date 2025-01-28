@@ -20,19 +20,24 @@ package com.xpdustry.imperium.discord.service
 import com.xpdustry.imperium.common.account.AccountManager
 import com.xpdustry.imperium.common.account.Rank
 import com.xpdustry.imperium.common.application.ImperiumApplication
-import com.xpdustry.imperium.common.config.DiscordConfig
+import com.xpdustry.imperium.common.async.ImperiumScope
+import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.misc.LoggerDelegate
 import com.xpdustry.imperium.common.permission.Permission
+import com.xpdustry.imperium.discord.misc.addSuspendingEventListener
 import com.xpdustry.imperium.discord.misc.awaitVoid
 import com.xpdustry.imperium.discord.misc.snowflake
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
+import kotlinx.coroutines.launch
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.entities.Guild
 import net.dv8tion.jda.api.entities.Member
 import net.dv8tion.jda.api.entities.Role
 import net.dv8tion.jda.api.entities.User
+import net.dv8tion.jda.api.events.channel.ChannelCreateEvent
+import net.dv8tion.jda.api.events.thread.ThreadRevealedEvent
 import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.utils.FileProxy
 import net.dv8tion.jda.api.utils.MemberCachePolicy
@@ -53,7 +58,7 @@ interface DiscordService {
 }
 
 class SimpleDiscordService(
-    private val config: DiscordConfig,
+    private val config: ImperiumConfig,
     private val http: OkHttpClient,
     private val accounts: AccountManager,
 ) : DiscordService, ImperiumApplication.Listener {
@@ -68,11 +73,27 @@ class SimpleDiscordService(
                     GatewayIntent.GUILD_MESSAGES,
                     GatewayIntent.GUILD_MESSAGE_REACTIONS,
                     GatewayIntent.DIRECT_MESSAGES,
-                    GatewayIntent.GUILD_EMOJIS_AND_STICKERS)
-                .setToken(config.token.value)
+                    GatewayIntent.GUILD_EXPRESSIONS,
+                )
+                .setToken(config.discord.token.value)
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .build()
                 .awaitReady()
+
+        // This is goofy, why do I need these to receive thread messages too
+        getMainServer().threadChannels.forEach { thread ->
+            if (!thread.isJoined) ImperiumScope.MAIN.launch { thread.join().awaitVoid() }
+        }
+
+        jda.addSuspendingEventListener<ChannelCreateEvent> { event ->
+            if (!event.channelType.isThread) return@addSuspendingEventListener
+            val thread = event.channel.asThreadChannel()
+            if (!thread.isJoined) thread.join().awaitVoid()
+        }
+
+        jda.addSuspendingEventListener<ThreadRevealedEvent> { event ->
+            if (!event.thread.isJoined) event.thread.join().awaitVoid()
+        }
     }
 
     override fun getMainServer(): Guild = jda.guildCache.first()
@@ -81,35 +102,35 @@ class SimpleDiscordService(
         if (rank == Rank.EVERYONE) {
             return true
         }
-        if ((accounts.findByDiscord(user.idLong)?.rank ?: Rank.EVERYONE) >= rank) {
+        if ((accounts.selectByDiscord(user.idLong)?.rank ?: Rank.EVERYONE) >= rank) {
             return true
         }
 
         var max = Rank.EVERYONE
         for (role in (getMainServer().getMemberById(user.idLong)?.roles ?: emptyList())) {
-            max = maxOf(max, config.roles2ranks[role.idLong] ?: Rank.EVERYONE)
+            max = maxOf(max, config.discord.roles2ranks[role.idLong] ?: Rank.EVERYONE)
         }
         return max >= rank
     }
 
     override suspend fun isAllowed(user: User, permission: Permission): Boolean =
         getMainServer().getMemberById(user.idLong)?.roles?.any {
-            it.idLong == config.permissions2roles[permission]
+            it.idLong == config.discord.permissions2roles[permission]
         } ?: false
 
     override suspend fun syncRoles(member: Member) {
-        val account = accounts.findByDiscord(member.idLong) ?: return
+        val account = accounts.selectByDiscord(member.idLong) ?: return
         syncRoles(account.id)
     }
 
     override suspend fun syncRoles(id: Int) {
-        val account = accounts.findById(id)
+        val account = accounts.selectById(id)
         val discord = account?.discord ?: return
         val member = getMainServer().getMemberById(discord) ?: return
         val current = member.roles.associateBy(Role::getIdLong)
 
-        for ((achievement, completed) in accounts.getAchievements(id)) {
-            val roleId = config.achievements2roles[achievement] ?: continue
+        for ((achievement, completed) in accounts.selectAchievements(id)) {
+            val roleId = config.discord.achievements2roles[achievement] ?: continue
             val role = getMainServer().getRoleById(roleId) ?: continue
             if (completed) {
                 if (roleId in current.keys) continue
@@ -119,7 +140,8 @@ class SimpleDiscordService(
                     role.name,
                     achievement,
                     member.effectiveName,
-                    member.idLong)
+                    member.idLong,
+                )
             } else {
                 if (roleId !in current.keys) continue
                 getMainServer().removeRoleFromMember(member.snowflake, role).awaitVoid()
@@ -128,13 +150,14 @@ class SimpleDiscordService(
                     role.name,
                     achievement,
                     member.effectiveName,
-                    member.idLong)
+                    member.idLong,
+                )
             }
         }
 
         val ranks = account.rank.getRanksBelow()
         for (rank in Rank.entries) {
-            val roleId = config.ranks2roles[rank] ?: continue
+            val roleId = config.discord.ranks2roles[rank] ?: continue
             val role = getMainServer().getRoleById(roleId) ?: continue
             if (rank in ranks) {
                 if (roleId in current) continue
@@ -144,7 +167,8 @@ class SimpleDiscordService(
                     role.name,
                     rank,
                     member.effectiveName,
-                    member.idLong)
+                    member.idLong,
+                )
             } else {
                 if (roleId !in current) continue
                 getMainServer().removeRoleFromMember(member.snowflake, role).awaitVoid()
@@ -153,7 +177,8 @@ class SimpleDiscordService(
                     role.name,
                     rank,
                     member.effectiveName,
-                    member.idLong)
+                    member.idLong,
+                )
             }
         }
     }

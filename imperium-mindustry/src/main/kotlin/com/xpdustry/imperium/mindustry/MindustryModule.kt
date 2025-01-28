@@ -20,16 +20,12 @@ package com.xpdustry.imperium.mindustry
 import arc.Core
 import com.xpdustry.distributor.api.plugin.MindustryPlugin
 import com.xpdustry.imperium.common.bridge.PlayerTracker
-import com.xpdustry.imperium.common.config.ImperiumConfig
-import com.xpdustry.imperium.common.config.MindustryConfig
 import com.xpdustry.imperium.common.inject.MutableInstanceManager
 import com.xpdustry.imperium.common.inject.get
 import com.xpdustry.imperium.common.inject.provider
 import com.xpdustry.imperium.common.network.Discovery
 import com.xpdustry.imperium.common.version.ImperiumVersion
 import com.xpdustry.imperium.mindustry.bridge.MindustryPlayerTracker
-import com.xpdustry.imperium.mindustry.chat.ChatMessagePipeline
-import com.xpdustry.imperium.mindustry.chat.SimpleChatMessagePipeline
 import com.xpdustry.imperium.mindustry.game.ClientDetector
 import com.xpdustry.imperium.mindustry.game.SimpleClientDetector
 import com.xpdustry.imperium.mindustry.history.Historian
@@ -37,12 +33,12 @@ import com.xpdustry.imperium.mindustry.history.HistoryRenderer
 import com.xpdustry.imperium.mindustry.history.SimpleHistorian
 import com.xpdustry.imperium.mindustry.history.SimpleHistoryRenderer
 import com.xpdustry.imperium.mindustry.misc.getMindustryServerInfo
-import com.xpdustry.imperium.mindustry.placeholder.PlaceholderPipeline
-import com.xpdustry.imperium.mindustry.placeholder.SimplePlaceholderPipeline
 import com.xpdustry.imperium.mindustry.security.BadWordDetector
 import com.xpdustry.imperium.mindustry.security.GatekeeperPipeline
+import com.xpdustry.imperium.mindustry.security.MarkedPlayerManager
 import com.xpdustry.imperium.mindustry.security.SimpleBadWordDetector
 import com.xpdustry.imperium.mindustry.security.SimpleGatekeeperPipeline
+import com.xpdustry.imperium.mindustry.security.SimpleMarkedPlayerManager
 import java.nio.file.Path
 import java.util.concurrent.Executor
 import java.util.function.Supplier
@@ -54,16 +50,7 @@ internal fun MutableInstanceManager.registerMindustryModule(plugin: MindustryPlu
 
     provider<GatekeeperPipeline> { SimpleGatekeeperPipeline() }
 
-    provider<ChatMessagePipeline> { SimpleChatMessagePipeline() }
-
-    provider<PlaceholderPipeline> { SimplePlaceholderPipeline() }
-
     provider<Path>("directory") { plugin.directory }
-
-    provider<MindustryConfig> {
-        get<ImperiumConfig>().mindustry
-            ?: error("The current server configuration is not Mindustry")
-    }
 
     provider<Supplier<Discovery.Data>>("discovery") { Supplier(::getMindustryServerInfo) }
 
@@ -78,4 +65,6 @@ internal fun MutableInstanceManager.registerMindustryModule(plugin: MindustryPlu
     provider<BadWordDetector> { SimpleBadWordDetector(get()) }
 
     provider<HistoryRenderer> { SimpleHistoryRenderer(get(), get(), get()) }
+
+    provider<MarkedPlayerManager> { SimpleMarkedPlayerManager(plugin) }
 }

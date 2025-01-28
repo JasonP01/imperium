@@ -17,7 +17,7 @@
  */
 package com.xpdustry.imperium.mindustry.command.vote
 
-import com.xpdustry.distributor.api.DistributorProvider
+import com.xpdustry.distributor.api.Distributor
 import com.xpdustry.distributor.api.plugin.MindustryPlugin
 import com.xpdustry.distributor.api.util.Priority
 import com.xpdustry.imperium.common.async.ImperiumScope
@@ -43,21 +43,13 @@ internal class SimpleVoteManager<O>(
     override val sessions: Map<UUID, VoteManager.Session<O>> = _sessions
 
     init {
-        DistributorProvider.get().eventBus.subscribe(
-            EventType.PlayerLeave::class.java,
-            Priority.HIGH,
-            plugin,
-        ) {
+        Distributor.get().eventBus.subscribe(EventType.PlayerLeave::class.java, Priority.HIGH, plugin) {
             for (session in _sessions.values) {
                 session.required = required(session)
             }
         }
 
-        DistributorProvider.get().eventBus.subscribe(
-            EventType.PlayerJoin::class.java,
-            Priority.HIGH,
-            plugin,
-        ) {
+        Distributor.get().eventBus.subscribe(EventType.PlayerJoin::class.java, Priority.HIGH, plugin) {
             for (session in _sessions.values) {
                 session.required = required(session)
             }
@@ -85,10 +77,8 @@ internal class SimpleVoteManager<O>(
         return session
     }
 
-    private inner class SimpleSession(
-        override val objective: O,
-        override val initiator: Player?,
-    ) : VoteManager.Session<O> {
+    private inner class SimpleSession(override val objective: O, override val initiator: Player?) :
+        VoteManager.Session<O> {
         override val duration: Duration
             get() = this@SimpleVoteManager.duration
 

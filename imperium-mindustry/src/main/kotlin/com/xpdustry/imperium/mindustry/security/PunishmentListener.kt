@@ -18,11 +18,13 @@
 package com.xpdustry.imperium.mindustry.security
 
 import arc.Events
-import com.xpdustry.distributor.api.DistributorProvider
+import com.xpdustry.distributor.api.Distributor
 import com.xpdustry.distributor.api.annotation.EventHandler
+import com.xpdustry.distributor.api.audience.PlayerAudience
 import com.xpdustry.distributor.api.component.Component
 import com.xpdustry.distributor.api.player.MUUID
 import com.xpdustry.distributor.api.util.Priority
+import com.xpdustry.flex.FlexAPI
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.async.ImperiumScope
 import com.xpdustry.imperium.common.collection.enumSetOf
@@ -42,21 +44,20 @@ import com.xpdustry.imperium.common.security.PunishmentManager
 import com.xpdustry.imperium.common.security.PunishmentMessage
 import com.xpdustry.imperium.common.security.SimpleRateLimiter
 import com.xpdustry.imperium.common.user.UserManager
-import com.xpdustry.imperium.mindustry.chat.ChatMessagePipeline
 import com.xpdustry.imperium.mindustry.misc.Entities
 import com.xpdustry.imperium.mindustry.misc.PlayerMap
 import com.xpdustry.imperium.mindustry.misc.asAudience
 import com.xpdustry.imperium.mindustry.misc.identity
-import com.xpdustry.imperium.mindustry.misc.kick
 import com.xpdustry.imperium.mindustry.misc.runMindustryThread
 import com.xpdustry.imperium.mindustry.translation.announcement_ban
 import com.xpdustry.imperium.mindustry.translation.punishment_message
 import com.xpdustry.imperium.mindustry.translation.punishment_message_simple
 import com.xpdustry.imperium.mindustry.translation.warning
-import kotlin.time.Duration
+import java.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.future.future
 import kotlinx.coroutines.launch
 import mindustry.Vars
 import mindustry.content.Blocks
@@ -77,7 +78,6 @@ class PunishmentListener(instances: InstanceManager) : ImperiumApplication.Liste
     private val messageCooldowns = SimpleRateLimiter<MindustryUUID>(1, 3.seconds)
     private val cache = PlayerMap<List<Punishment>>(instances.get())
     private val kicking = PlayerMap<Boolean>(instances.get())
-    private val chatMessagePipeline = instances.get<ChatMessagePipeline>()
     private val gatekeeper = instances.get<GatekeeperPipeline>()
     private val badWords = instances.get<BadWordDetector>()
     private val badWordsCounter = SimpleRateLimiter<MUUID>(3, 10.minutes)
@@ -97,27 +97,28 @@ class PunishmentListener(instances: InstanceManager) : ImperiumApplication.Liste
                         player.ip().toInetAddress() in data.addresses
                 }
 
-            if (punishment.type == Punishment.Type.BAN &&
-                message.type == PunishmentMessage.Type.CREATE) {
+            if (punishment.type == Punishment.Type.BAN && message.type == PunishmentMessage.Type.CREATE) {
                 runMindustryThread {
                     Events.fire(PlayerIpBanEvent(punished.lastAddress.hostAddress))
                     targets.forEach { target ->
                         Events.fire(PlayerBanEvent(target, target.uuid()))
-                        target.con.kick(punishment_message(punishment, codec), Duration.ZERO)
+                        target.asAudience.kick(punishment_message(punishment, codec), Duration.ZERO)
                         logger.info(
                             "{} ({}) has been banned for '{}'",
                             target.plainName(),
                             target.uuid(),
                             punishment.reason,
                         )
-                        DistributorProvider.get()
+                        Distributor.get()
                             .audienceProvider
                             .players
                             .sendMessage(
                                 announcement_ban(
                                     target.name.stripMindustryColors(),
                                     punishment.reason,
-                                    punishment.duration))
+                                    punishment.duration,
+                                )
+                            )
                     }
                 }
             } else {
@@ -131,10 +132,7 @@ class PunishmentListener(instances: InstanceManager) : ImperiumApplication.Liste
         }
 
         Vars.netServer.admins.addActionFilter { action ->
-            val freeze =
-                cache[action.player]?.firstOrNull {
-                    it.type == Punishment.Type.FREEZE && !it.expired
-                }
+            val freeze = cache[action.player]?.firstOrNull { it.type == Punishment.Type.FREEZE && !it.expired }
             if (freeze != null) {
                 if (!isFooNetworking(action.block, action.tile)) {
                     action.player.sendMessageRateLimited(punishment_message(freeze, codec))
@@ -143,8 +141,7 @@ class PunishmentListener(instances: InstanceManager) : ImperiumApplication.Liste
             }
             if (kicking[action.player] == true) {
                 if (!isFooNetworking(action.block, action.tile)) {
-                    action.player.sendMessageRateLimited(
-                        punishment_message_simple(Punishment.Type.FREEZE, "votekick"))
+                    action.player.sendMessageRateLimited(punishment_message_simple(Punishment.Type.FREEZE, "votekick"))
                 }
                 return@addActionFilter false
             }
@@ -156,9 +153,11 @@ class PunishmentListener(instances: InstanceManager) : ImperiumApplication.Liste
                 cache[action.player]?.firstOrNull { it.type == Punishment.Type.MUTE && !it.expired }
                     ?: return@addActionFilter true
 
-            if ((action.type == Administration.ActionType.configure && action.config is String) ||
-                (action.type == Administration.ActionType.placeBlock &&
-                    (action.block is MessageBlock || action.block is LogicBlock))) {
+            if (
+                (action.type == Administration.ActionType.configure && action.config is String) ||
+                    (action.type == Administration.ActionType.placeBlock &&
+                        (action.block is MessageBlock || action.block is LogicBlock))
+            ) {
                 action.player.sendMessageRateLimited(punishment_message(mute, codec))
                 return@addActionFilter false
             }
@@ -166,48 +165,50 @@ class PunishmentListener(instances: InstanceManager) : ImperiumApplication.Liste
             return@addActionFilter true
         }
 
-        chatMessagePipeline.register("mute", Priority.HIGH) { ctx ->
-            if (ctx.sender == null) {
-                return@register ctx.message
-            }
-            val muted = runMindustryThread {
-                cache[ctx.sender]?.firstOrNull { it.type == Punishment.Type.MUTE && !it.expired }
-            }
-            if (muted != null) {
-                if (ctx.target == ctx.sender) {
-                    ctx.sender.asAudience.sendMessage(punishment_message(muted, codec))
+        FlexAPI.get().messages.register("mute", Priority.HIGH) { ctx ->
+            ImperiumScope.MAIN.future {
+                if (!ctx.filter) return@future ctx.message
+                val player = ctx.sender as? PlayerAudience ?: return@future ctx.message
+                val muted = runMindustryThread {
+                    cache[player.player]?.firstOrNull { it.type == Punishment.Type.MUTE && !it.expired }
                 }
-                return@register ""
+                if (muted != null) {
+                    ctx.sender.sendMessage(punishment_message(muted, codec))
+                    ""
+                } else {
+                    ctx.message
+                }
             }
-            ctx.message
         }
 
-        chatMessagePipeline.register("bad-word", Priority.HIGH) { ctx ->
-            val words =
-                badWords.findBadWords(ctx.message, enumSetOf(Category.HATE_SPEECH, Category.SEXUAL))
-            if (words.isNotEmpty()) {
-                if (ctx.sender == ctx.target && ctx.sender != null) {
-                    if (badWordsCounter.incrementAndCheck(MUUID.from(ctx.sender))) {
-                        ctx.sender.asAudience.sendMessage(warning("bad_word", words.toString()))
+        FlexAPI.get().messages.register("bad_word", Priority.HIGH) { ctx ->
+            ImperiumScope.MAIN.future {
+                if (!ctx.filter) return@future ctx.message
+                val player = ctx.sender as? PlayerAudience ?: return@future ctx.message
+                val words = badWords.findBadWords(ctx.message, enumSetOf(Category.HATE_SPEECH, Category.SEXUAL))
+                if (words.isNotEmpty()) {
+                    if (badWordsCounter.incrementAndCheck(MUUID.from(player.player))) {
+                        ctx.sender.sendMessage(warning("bad_word", words.toString()))
                     } else {
                         punishments.punish(
                             config.server.identity,
-                            users.getByIdentity(ctx.sender.identity).id,
+                            users.getByIdentity(player.player.identity).id,
                             "Bad words: $words",
                             Punishment.Type.MUTE,
-                            1.hours)
+                            1.hours,
+                        )
                     }
+                    ""
+                } else {
+                    ctx.message
                 }
-                return@register ""
             }
-            ctx.message
         }
 
         gatekeeper.register("punishment", Priority.HIGH) { ctx ->
             val punishment =
                 punishments
-                    .findAllByIdentity(
-                        Identity.Mindustry("unknown", ctx.uuid, ctx.usid, ctx.address))
+                    .findAllByIdentity(Identity.Mindustry("unknown", ctx.uuid, ctx.usid, ctx.address))
                     .filter { !it.expired && it.type == Punishment.Type.BAN }
                     .toList()
                     .maxByOrNull { it.creation }
@@ -229,8 +230,7 @@ class PunishmentListener(instances: InstanceManager) : ImperiumApplication.Liste
     }
 
     @EventHandler
-    fun onPlayerJoin(event: EventType.PlayerJoin) =
-        ImperiumScope.MAIN.launch { refreshPunishments(event.player) }
+    fun onPlayerJoin(event: EventType.PlayerJoin) = ImperiumScope.MAIN.launch { refreshPunishments(event.player) }
 
     private fun Player.sendMessageRateLimited(message: Component) {
         if (messageCooldowns.incrementAndCheck(uuid())) {

@@ -22,7 +22,7 @@ import com.xpdustry.distributor.api.command.CommandSender
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.async.ImperiumScope
 import com.xpdustry.imperium.common.command.ImperiumCommand
-import com.xpdustry.imperium.common.config.MindustryConfig
+import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.geometry.Cluster
 import com.xpdustry.imperium.common.geometry.ClusterManager
 import com.xpdustry.imperium.common.inject.InstanceManager
@@ -47,12 +47,12 @@ import org.incendo.cloud.annotation.specifier.Range
 
 class CoreBlockListener(instances: InstanceManager) : ImperiumApplication.Listener {
     private val managers = mutableMapOf<Team, ClusterManager<Unit>>()
-    private val config = instances.get<MindustryConfig>()
+    private val config = instances.get<ImperiumConfig>()
     private val damageRateLimiter =
-        SimpleRateLimiter<CoreClusterDamageKey>(1, config.world.coreDamageAlertDelay)
+        SimpleRateLimiter<CoreClusterDamageKey>(1, config.mindustry.world.coreDamageAlertDelay)
 
     override fun onImperiumInit() {
-        if (!config.world.displayCoreId) return
+        if (!config.mindustry.world.displayCoreId) return
         ImperiumScope.MAIN.launch {
             while (isActive) {
                 delay(1.seconds)
@@ -64,7 +64,8 @@ class CoreBlockListener(instances: InstanceManager) : ImperiumApplication.Listen
                             "#${index + 1}",
                             1F,
                             (cluster.x + (cluster.w / 2F)) * Vars.tilesize - (Vars.tilesize / 2F),
-                            (cluster.y + (cluster.h / 2F)) * Vars.tilesize - (Vars.tilesize / 2F))
+                            (cluster.y + (cluster.h / 2F)) * Vars.tilesize - (Vars.tilesize / 2F),
+                        )
                     }
                 }
             }
@@ -83,10 +84,9 @@ class CoreBlockListener(instances: InstanceManager) : ImperiumApplication.Listen
             buildString {
                 appendLine("Found ${clusters.size} cores: ")
                 for ((index, cluster) in clusters.withIndex()) {
-                    appendLine(
-                        "- #${index + 1} ${cluster.x}, ${cluster.y} (${cluster.w}x${cluster.h})")
+                    appendLine("- #${index + 1} ${cluster.x}, ${cluster.y} (${cluster.w}x${cluster.h})")
                 }
-            },
+            }
         )
     }
 
@@ -115,15 +115,14 @@ class CoreBlockListener(instances: InstanceManager) : ImperiumApplication.Listen
 
         val manager = getManager(building.team)
         val (cluster, _) = manager.getElement(building.rx, building.ry) ?: return
-        if (!damageRateLimiter.incrementAndCheck(
-            CoreClusterDamageKey(building.team, cluster.x, cluster.y)))
-            return
+        if (!damageRateLimiter.incrementAndCheck(CoreClusterDamageKey(building.team, cluster.x, cluster.y))) return
 
         val index = manager.clusters.indexOf(cluster)
         for (player in Entities.getPlayers()) {
             if (player.team() == building.team) {
                 player.sendMessage(
-                    "[scarlet]The core cluster [orange]#${index + 1}[] at ([orange]${cluster.x}[], [orange]${cluster.y}[]) is under attack!")
+                    "[scarlet]The core cluster [orange]#${index + 1}[] at ([orange]${cluster.x}[], [orange]${cluster.y}[]) is under attack!"
+                )
             }
         }
     }
@@ -140,14 +139,7 @@ class CoreBlockListener(instances: InstanceManager) : ImperiumApplication.Listen
             if (manager.getElement(building.rx, building.ry) != null) {
                 return@eachTile
             }
-            manager.addElement(
-                Cluster.Block(
-                    building.rx,
-                    building.ry,
-                    building.block.size,
-                    Unit,
-                ),
-            )
+            manager.addElement(Cluster.Block(building.rx, building.ry, building.block.size, Unit))
             logger.trace("Loaded {} core at ({}, {})", building.team.name, building.rx, building.ry)
         }
     }
@@ -158,8 +150,7 @@ class CoreBlockListener(instances: InstanceManager) : ImperiumApplication.Listen
         if (building is CoreBlock.CoreBuild) {
             val manager = getManager(building.team)
             manager.removeElement(building.rx, building.ry)
-            logger.trace(
-                "Destroyed {} core at ({}, {})", building.team.name, building.rx, building.ry)
+            logger.trace("Destroyed {} core at ({}, {})", building.team.name, building.rx, building.ry)
         }
     }
 
@@ -172,25 +163,16 @@ class CoreBlockListener(instances: InstanceManager) : ImperiumApplication.Listen
             building.rx,
             building.ry,
             event.previous.name,
-            building.team.name)
+            building.team.name,
+        )
         getManager(event.previous).removeElement(building.rx, building.ry)
-        getManager(building.team)
-            .addElement(
-                Cluster.Block(
-                    building.rx,
-                    building.ry,
-                    building.block.size,
-                    Unit,
-                ),
-            )
+        getManager(building.team).addElement(Cluster.Block(building.rx, building.ry, building.block.size, Unit))
     }
 
     @EventHandler
     fun onBlockBuildEvent(event: EventType.BlockBuildEndEvent) {
         var building = event.tile.build
-        if (event.breaking &&
-            building is ConstructBlock.ConstructBuild &&
-            building.prevBuild?.isEmpty == false) {
+        if (event.breaking && building is ConstructBlock.ConstructBuild && building.prevBuild?.isEmpty == false) {
             building = building.prevBuild.first()
         }
 
@@ -198,19 +180,10 @@ class CoreBlockListener(instances: InstanceManager) : ImperiumApplication.Listen
             val manager = getManager(building.team)
             manager.removeElement(building.rx, building.ry)
             if (event.breaking) {
-                logger.trace(
-                    "Removed {} core at ({}, {})", building.team.name, building.rx, building.ry)
+                logger.trace("Removed {} core at ({}, {})", building.team.name, building.rx, building.ry)
             } else {
-                manager.addElement(
-                    Cluster.Block(
-                        building.rx,
-                        building.ry,
-                        building.block.size,
-                        Unit,
-                    ),
-                )
-                logger.trace(
-                    "Added {} core at ({}, {})", building.team.name, building.rx, building.ry)
+                manager.addElement(Cluster.Block(building.rx, building.ry, building.block.size, Unit))
+                logger.trace("Added {} core at ({}, {})", building.team.name, building.rx, building.ry)
             }
         }
     }

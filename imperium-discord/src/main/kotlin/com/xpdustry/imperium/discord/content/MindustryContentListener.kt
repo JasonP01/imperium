@@ -38,8 +38,7 @@ import mindustry.ctype.MappableContent
 import mindustry.game.Schematic
 import net.dv8tion.jda.api.entities.Member
 import net.dv8tion.jda.api.entities.Message
-import net.dv8tion.jda.api.entities.channel.ChannelType
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.utils.FileUpload
 
@@ -52,13 +51,11 @@ class MindustryContentListener(instances: InstanceManager) : ImperiumApplication
             if (event.author.isBot || event.author.isSystem || event.isWebhookMessage) {
                 return@addSuspendingEventListener
             }
-            if (event.isFromType(ChannelType.TEXT)) {
-                onMindustryContent(event.channel.asTextChannel(), event.message, event.member!!)
-            }
+            onMindustryContent(event.channel, event.message, event.member!!)
         }
     }
 
-    private suspend fun onMindustryContent(channel: TextChannel, message: Message, member: Member) {
+    private suspend fun onMindustryContent(channel: MessageChannel, message: Message, member: Member) {
         val maps = mutableListOf<Triple<MapMetadata, BufferedImage, Message.Attachment>>()
         val schematics = mutableListOf<Schematic>()
         var delete = false
@@ -87,17 +84,13 @@ class MindustryContentListener(instances: InstanceManager) : ImperiumApplication
                         channel.sendMessage("Schematic file is too large!").await()
                         return
                     }
-                    val text =
-                        attachment.proxy.download().await().bufferedReader().use { it.readText() }
+                    val text = attachment.proxy.download().await().bufferedReader().use { it.readText() }
                     if (text.startsWith(Vars.schematicBaseStart)) {
                         schematics +=
                             content
                                 .getSchematic(text)
                                 .onFailure {
-                                    channel
-                                        .sendMessage(
-                                            "Failed to parse text schematic: ${it.message}")
-                                        .await()
+                                    channel.sendMessage("Failed to parse text schematic: ${it.message}").await()
                                     return
                                 }
                                 .getOrThrow()
@@ -112,20 +105,14 @@ class MindustryContentListener(instances: InstanceManager) : ImperiumApplication
                             content
                                 .getSchematic(stream)
                                 .onFailure {
-                                    channel
-                                        .sendMessage(
-                                            "Failed to parse binary schematic: ${it.message}")
-                                        .await()
+                                    channel.sendMessage("Failed to parse binary schematic: ${it.message}").await()
                                     return
                                 }
                                 .getOrThrow()
                     }
                 } else if (attachment.fileExtension == "msav") {
                     if (attachment.size > MindustryMap.MAX_MAP_FILE_SIZE) {
-                        channel
-                            .sendMessage(
-                                "The map file is too big, please submit reasonably sized maps.")
-                            .await()
+                        channel.sendMessage("The map file is too big, please submit reasonably sized maps.").await()
                         return
                     }
                     attachment.proxy.download().await().use { stream ->
@@ -133,18 +120,18 @@ class MindustryContentListener(instances: InstanceManager) : ImperiumApplication
                             content
                                 .getMapMetadataWithPreview(stream)
                                 .onFailure {
-                                    channel
-                                        .sendMessage("Failed to parse map: ${it.message}")
-                                        .await()
+                                    channel.sendMessage("Failed to parse map: ${it.message}").await()
                                     return
                                 }
                                 .getOrThrow()
 
-                        if (meta.width > MindustryMap.MAX_MAP_SIDE_SIZE ||
-                            meta.height > MindustryMap.MAX_MAP_SIDE_SIZE) {
+                        if (
+                            meta.width > MindustryMap.MAX_MAP_SIDE_SIZE || meta.height > MindustryMap.MAX_MAP_SIDE_SIZE
+                        ) {
                             channel
                                 .sendMessage(
-                                    "The map is bigger than ${MindustryMap.MAX_MAP_SIDE_SIZE} blocks, please submit reasonably sized maps.")
+                                    "The map is bigger than ${MindustryMap.MAX_MAP_SIDE_SIZE} blocks, please submit reasonably sized maps."
+                                )
                                 .await()
                             return
                         }
@@ -172,9 +159,7 @@ class MindustryContentListener(instances: InstanceManager) : ImperiumApplication
                 content
                     .getSchematicPreview(schematic)
                     .onFailure {
-                        channel
-                            .sendMessage("${"Failed to generate schematic preview"}: ${it.message}")
-                            .await()
+                        channel.sendMessage("${"Failed to generate schematic preview"}: ${it.message}").await()
                         return
                     }
                     .getOrThrow()
@@ -192,9 +177,7 @@ class MindustryContentListener(instances: InstanceManager) : ImperiumApplication
                 .sendMessage(
                     MessageCreate {
                         files +=
-                            FileUpload.fromData(
-                                stream.toByteArray(),
-                                "${schematic.name().stripMindustryColors()}.msch")
+                            FileUpload.fromData(stream.toByteArray(), "${schematic.name().stripMindustryColors()}.msch")
                         files += FileUpload.fromStreamSupplier("preview.png", preview::inputStream)
                         embeds += Embed {
                             author(member)
@@ -204,7 +187,8 @@ class MindustryContentListener(instances: InstanceManager) : ImperiumApplication
                             description = schematic.description().stripMindustryColors()
                             image = "attachment://preview.png"
                         }
-                    })
+                    }
+                )
                 .await()
         }
 
@@ -213,23 +197,20 @@ class MindustryContentListener(instances: InstanceManager) : ImperiumApplication
                 .sendMessage(
                     MessageCreate {
                         files +=
-                            FileUpload.fromStreamSupplier(
-                                meta.name.stripMindustryColors() + ".msch") {
-                                    attachement.proxy.download().join()
-                                }
+                            FileUpload.fromStreamSupplier(meta.name.stripMindustryColors() + ".msav") {
+                                attachement.proxy.download().join()
+                            }
                         files += FileUpload.fromStreamSupplier("preview.png", preview::inputStream)
                         embeds += Embed {
                             color = MINDUSTRY_ACCENT_COLOR.rgb
                             title = meta.name.stripMindustryColors()
                             image = "attachment://preview.png"
                             field("Author", meta.author?.stripMindustryColors() ?: "Unknown", false)
-                            field(
-                                "Description",
-                                meta.description?.stripMindustryColors() ?: "Unknown",
-                                false)
+                            field("Description", meta.description?.stripMindustryColors() ?: "Unknown", false)
                             field("Size", "${preview.width} x ${preview.height}", false)
                         }
-                    })
+                    }
+                )
                 .await()
         }
 
@@ -239,11 +220,7 @@ class MindustryContentListener(instances: InstanceManager) : ImperiumApplication
     }
 
     private fun MappableContent.asEmoji() =
-        discord
-            .getMainServer()
-            .getEmojisByName(name.replace("-", ""), true)
-            .firstOrNull()
-            ?.asMention ?: ":question:"
+        discord.getMainServer().getEmojisByName(name.replace("-", ""), true).firstOrNull()?.asMention ?: ":question:"
 
     companion object {
         private const val SCHEMATIC_MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB

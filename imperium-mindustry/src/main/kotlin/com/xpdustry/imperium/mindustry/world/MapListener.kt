@@ -21,7 +21,7 @@ import arc.files.Fi
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.async.ImperiumScope
 import com.xpdustry.imperium.common.command.ImperiumCommand
-import com.xpdustry.imperium.common.config.MindustryConfig
+import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.content.MapReloadMessage
 import com.xpdustry.imperium.common.content.MindustryMap
 import com.xpdustry.imperium.common.content.MindustryMapManager
@@ -43,7 +43,7 @@ import mindustry.io.MapIO
 import mindustry.maps.Map
 
 class MapListener(instances: InstanceManager) : ImperiumApplication.Listener {
-    private val config = instances.get<MindustryConfig>()
+    private val config = instances.get<ImperiumConfig>()
     private val maps = instances.get<MindustryMapManager>()
     private val cache = instances.get<Path>("directory").resolve("map-pool")
     private val messenger = instances.get<Messenger>()
@@ -52,7 +52,7 @@ class MapListener(instances: InstanceManager) : ImperiumApplication.Listener {
         if (cache.notExists()) cache.createDirectory()
 
         messenger.consumer<MapReloadMessage> {
-            if (config.gamemode in it.gamemodes || it.gamemodes.isEmpty()) reloadMaps()
+            if (config.mindustry.gamemode in it.gamemodes || it.gamemodes.isEmpty()) reloadMaps()
         }
 
         reloadMaps()
@@ -70,12 +70,11 @@ class MapListener(instances: InstanceManager) : ImperiumApplication.Listener {
 
         val pool =
             runBlocking(ImperiumScope.IO.coroutineContext) {
-                maps.findAllMapsByGamemode(config.gamemode).mapNotNull {
+                maps.findAllMapsByGamemode(config.mindustry.gamemode).mapNotNull {
                     try {
                         downloadMapFromPool(it)
                     } catch (e: Exception) {
-                        logger.error(
-                            "Failed to load map from server pool, falling back to local maps.", e)
+                        logger.error("Failed to load map from server pool, falling back to local maps.", e)
                         null
                     }
                 }
@@ -87,20 +86,14 @@ class MapListener(instances: InstanceManager) : ImperiumApplication.Listener {
 
         Vars.maps.all().addAll(pool)
         val now = Vars.maps.all().map { it.name().stripMindustryColors() }.toMutableSet()
-        logger.info(
-            "Reloaded {} maps (added={}, removed={}).",
-            now.size,
-            (now - old).size,
-            (old - now).size)
+        logger.info("Reloaded {} maps (added={}, removed={}).", now.size, (now - old).size, (old - now).size)
     }
 
     private suspend fun downloadMapFromPool(map: MindustryMap): Map {
         val file = cache.resolve("${map.id}_${map.lastUpdate.toEpochMilli()}.msav")
         if (file.notExists()) {
             logger.debug("Downloading map {} (id={}) from serer pool.", map.name, map.id)
-            file.outputStream().use { output ->
-                maps.getMapInputStream(map.id)!!.use { input -> input.copyTo(output) }
-            }
+            file.outputStream().use { output -> maps.getMapInputStream(map.id)!!.use { input -> input.copyTo(output) } }
         }
         logger.debug("Loaded map {} (id={}) from server pool.", map.name, map.id)
         return MapIO.createMap(Fi(file.toFile()), true).also { it.id = map.id }

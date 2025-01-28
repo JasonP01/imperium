@@ -38,7 +38,6 @@ fun interface Action {
         return BiAction { view: View, _: T -> accept(view) }
     }
 
-    // TODO Move some default actions to the View class
     companion object {
         fun none(): Action {
             return Action {}
@@ -78,9 +77,7 @@ fun interface Action {
                 builder.append(' ').append(argument)
             }
             val input = builder.toString()
-            return Action { view: View ->
-                Vars.netServer.clientCommands.handleMessage(input, view.viewer)
-            }
+            return Action { view: View -> Vars.netServer.clientCommands.handleMessage(input, view.viewer) }
         }
     }
 }

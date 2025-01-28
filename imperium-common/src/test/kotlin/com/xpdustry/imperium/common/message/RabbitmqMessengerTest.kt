@@ -41,7 +41,6 @@ import org.testcontainers.utility.DockerImageName
 
 @Testcontainers
 class RabbitmqMessengerTest {
-    @Container private var rabbitmq = RabbitMQContainer(DockerImageName.parse("rabbitmq:3"))
     private lateinit var messenger1: RabbitmqMessenger
     private lateinit var messenger2: RabbitmqMessenger
 
@@ -71,10 +70,7 @@ class RabbitmqMessengerTest {
         }
 
         Assertions.assertTrue(messenger2.publish(message))
-        val result =
-            withContext(ImperiumScope.MAIN.coroutineContext) {
-                withTimeout(3.seconds) { deferred.await() }
-            }
+        val result = withContext(ImperiumScope.MAIN.coroutineContext) { withTimeout(3.seconds) { deferred.await() } }
         Assertions.assertEquals(message, result)
     }
 
@@ -101,17 +97,11 @@ class RabbitmqMessengerTest {
         }
 
         Assertions.assertTrue(messenger2.publish(message1))
-        val result =
-            withContext(ImperiumScope.MAIN.coroutineContext) {
-                withTimeout(3.seconds) { deferred1.await() }
-            }
+        val result = withContext(ImperiumScope.MAIN.coroutineContext) { withTimeout(3.seconds) { deferred1.await() } }
         Assertions.assertEquals(message1, result)
 
         Assertions.assertTrue(messenger2.publish(message2))
-        val result2 =
-            withContext(ImperiumScope.MAIN.coroutineContext) {
-                withTimeout(3.seconds) { deferred2.await() }
-            }
+        val result2 = withContext(ImperiumScope.MAIN.coroutineContext) { withTimeout(3.seconds) { deferred2.await() } }
         Assertions.assertEquals(message2, result2)
     }
 
@@ -134,16 +124,10 @@ class RabbitmqMessengerTest {
 
         Assertions.assertTrue(messenger1.publish(message, local = true))
 
-        val result1 =
-            withContext(ImperiumScope.MAIN.coroutineContext) {
-                withTimeout(3.seconds) { deferred1.await() }
-            }
+        val result1 = withContext(ImperiumScope.MAIN.coroutineContext) { withTimeout(3.seconds) { deferred1.await() } }
         Assertions.assertEquals(message, result1)
 
-        val result2 =
-            withContext(ImperiumScope.MAIN.coroutineContext) {
-                withTimeout(3.seconds) { deferred2.await() }
-            }
+        val result2 = withContext(ImperiumScope.MAIN.coroutineContext) { withTimeout(3.seconds) { deferred2.await() } }
         Assertions.assertEquals(message, result2)
     }
 
@@ -204,10 +188,7 @@ class RabbitmqMessengerTest {
         val result = messenger2.request<TestMessage>(message, timeout = 1.seconds)
         Assertions.assertNull(result)
 
-        val received =
-            withContext(ImperiumScope.MAIN.coroutineContext) {
-                withTimeout(3.seconds) { deferred.await() }
-            }
+        val received = withContext(ImperiumScope.MAIN.coroutineContext) { withTimeout(3.seconds) { deferred.await() } }
         Assertions.assertEquals(message, received)
     }
 
@@ -224,6 +205,11 @@ class RabbitmqMessengerTest {
         RabbitmqMessenger(
             ImperiumConfig(
                 server = ServerConfig("test-${UUID.randomUUID()}"),
-                messenger = MessengerConfig.RabbitMQ(port = rabbitmq.amqpPort)),
+                messenger = MessengerConfig.RabbitMQ(port = RABBITMQ.amqpPort),
+            )
         )
+
+    companion object {
+        @Container private val RABBITMQ = RabbitMQContainer(DockerImageName.parse("rabbitmq:3"))
+    }
 }

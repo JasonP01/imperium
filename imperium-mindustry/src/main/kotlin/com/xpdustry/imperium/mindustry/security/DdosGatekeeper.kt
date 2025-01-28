@@ -29,7 +29,7 @@ import com.xpdustry.imperium.mindustry.processing.Processor
 import java.io.IOException
 import java.math.BigInteger
 import java.net.Inet4Address
-import java.net.URL
+import java.net.URI
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -61,8 +61,7 @@ private val PROVIDERS =
 class DdosGatekeeper(private val http: OkHttpClient, private val config: MindustryConfig.Security) :
     Processor<GatekeeperContext, GatekeeperResult> {
 
-    private val addresses: Deferred<RangeSet<BigInteger>> =
-        ImperiumScope.MAIN.async { fetchAddressRanges() }
+    private val addresses: Deferred<RangeSet<BigInteger>> = ImperiumScope.MAIN.async { fetchAddressRanges() }
 
     override suspend fun process(context: GatekeeperContext): GatekeeperResult {
         return if (addresses.await().contains(BigInteger(1, context.address.address))) {
@@ -80,16 +79,10 @@ class DdosGatekeeper(private val http: OkHttpClient, private val config: Mindust
                     async {
                         try {
                             val result = provider.fetchAddressRanges(http)
-                            logger.debug(
-                                "Found {} address ranges for cloud provider '{}'",
-                                result.size,
-                                provider.name)
+                            logger.debug("Found {} address ranges for cloud provider '{}'", result.size, provider.name)
                             result
                         } catch (e: Exception) {
-                            logger.error(
-                                "Failed to fetch address ranges for cloud provider '{}'",
-                                provider.name,
-                                e)
+                            logger.error("Failed to fetch address ranges for cloud provider '{}'", provider.name, e)
                             emptyList()
                         }
                     }
@@ -113,20 +106,20 @@ private interface AddressProvider {
     suspend fun fetchAddressRanges(http: OkHttpClient): List<Range<BigInteger>>
 }
 
-private abstract class JsonAddressProvider protected constructor(override val name: String) :
-    AddressProvider {
+private abstract class JsonAddressProvider protected constructor(override val name: String) : AddressProvider {
 
     @OptIn(ExperimentalSerializationApi::class)
     override suspend fun fetchAddressRanges(http: OkHttpClient): List<Range<BigInteger>> =
-        http.newCall(Request.Builder().url(fetchUrl()).build()).await().use { response ->
+        http.newCall(Request.Builder().url(fetchUri().toURL()).build()).await().use { response ->
             if (response.code != 200) {
                 throw IOException(
-                    "Failed to download '$name' public addresses file (status-code: ${response.code}, url: ${response.request.url}).")
+                    "Failed to download '$name' public addresses file (status-code: ${response.code}, url: ${response.request.url})."
+                )
             }
             extractAddressRanges(Json.decodeFromStream<JsonObject>(response.body!!.byteStream()))
         }
 
-    protected abstract suspend fun fetchUrl(): URL
+    protected abstract suspend fun fetchUri(): URI
 
     protected abstract fun extractAddressRanges(json: JsonObject): List<Range<BigInteger>>
 }
@@ -134,15 +127,14 @@ private abstract class JsonAddressProvider protected constructor(override val na
 private object AzureAddressProvider : JsonAddressProvider("azure") {
 
     // This goofy aah hacky code 💀
-    override suspend fun fetchUrl(): URL =
+    override suspend fun fetchUri() =
         withContext(ImperiumScope.IO.coroutineContext) {
-            Jsoup.connect("https://www.microsoft.com/en-us/download/confirmation.aspx?id=56519")
+            Jsoup.connect("https://www.microsoft.com/en-us/download/details.aspx?id=56519")
                 .get()
                 .select("a[href*=download.microsoft.com]")
                 .map { element -> element.attr("abs:href") }
                 .find { it.contains("ServiceTags_Public") }
-                ?.let { URL(it) }
-                ?: throw IOException("Failed to find Azure public addresses download link.")
+                ?.let(::URI) ?: throw IOException("Failed to find Azure public addresses download link.")
         }
 
     override fun extractAddressRanges(json: JsonObject): List<Range<BigInteger>> =
@@ -155,14 +147,14 @@ private object AzureAddressProvider : JsonAddressProvider("azure") {
 }
 
 private object GithubActionsAddressProvider : JsonAddressProvider("github-actions") {
-    override suspend fun fetchUrl(): URL = URL("https://api.github.com/meta")
+    override suspend fun fetchUri() = URI("https://api.github.com/meta")
 
     override fun extractAddressRanges(json: JsonObject): List<Range<BigInteger>> =
         json["actions"]!!.jsonArray.map { createInetAddressRange(it.jsonPrimitive.content) }
 }
 
 private object AmazonWebServicesAddressProvider : JsonAddressProvider("amazon-web-services") {
-    override suspend fun fetchUrl(): URL = URL("https://ip-ranges.amazonaws.com/ip-ranges.json")
+    override suspend fun fetchUri() = URI("https://ip-ranges.amazonaws.com/ip-ranges.json")
 
     override fun extractAddressRanges(json: JsonObject): List<Range<BigInteger>> {
         val addresses = mutableSetOf<Range<BigInteger>>()
@@ -171,18 +163,12 @@ private object AmazonWebServicesAddressProvider : JsonAddressProvider("amazon-we
         return addresses.toList()
     }
 
-    private fun parsePrefix(
-        json: JsonObject,
-        name: String,
-        element: String
-    ): Collection<Range<BigInteger>> =
-        json[name]!!.jsonArray.map {
-            createInetAddressRange(it.jsonObject[element]!!.jsonPrimitive.content)
-        }
+    private fun parsePrefix(json: JsonObject, name: String, element: String): Collection<Range<BigInteger>> =
+        json[name]!!.jsonArray.map { createInetAddressRange(it.jsonObject[element]!!.jsonPrimitive.content) }
 }
 
 private object GoogleCloudAddressProvider : JsonAddressProvider("google") {
-    override suspend fun fetchUrl(): URL = URL("https://www.gstatic.com/ipranges/cloud.json")
+    override suspend fun fetchUri() = URI("https://www.gstatic.com/ipranges/cloud.json")
 
     override fun extractAddressRanges(json: JsonObject): List<Range<BigInteger>> =
         json["prefixes"]!!.jsonArray.map { extractAddress(it.jsonObject) }
@@ -192,8 +178,7 @@ private object GoogleCloudAddressProvider : JsonAddressProvider("google") {
 }
 
 private object OracleCloudAddressProvider : JsonAddressProvider("oracle") {
-    override suspend fun fetchUrl(): URL =
-        URL("https://docs.cloud.oracle.com/en-us/iaas/tools/public_ip_ranges.json")
+    override suspend fun fetchUri() = URI("https://docs.cloud.oracle.com/en-us/iaas/tools/public_ip_ranges.json")
 
     override fun extractAddressRanges(json: JsonObject): List<Range<BigInteger>> =
         json["regions"]!!

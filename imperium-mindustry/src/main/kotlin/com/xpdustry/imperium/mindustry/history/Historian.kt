@@ -25,7 +25,6 @@ import com.xpdustry.distributor.api.util.Priority
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.collection.LimitedList
 import com.xpdustry.imperium.common.config.ImperiumConfig
-import com.xpdustry.imperium.common.config.MindustryConfig
 import com.xpdustry.imperium.common.history.HistoryRequestMessage
 import com.xpdustry.imperium.common.history.HistoryResponseMessage
 import com.xpdustry.imperium.common.message.Messenger
@@ -76,9 +75,7 @@ fun List<HistoryEntry>.normalize(limit: Int) =
         .asSequence()
         .withIndex()
         .filter {
-            it.index == 0 ||
-                (it.value.type != HistoryEntry.Type.BREAKING &&
-                    it.value.type != HistoryEntry.Type.PLACING)
+            it.index == 0 || (it.value.type != HistoryEntry.Type.BREAKING && it.value.type != HistoryEntry.Type.PLACING)
         }
         .map { it.value }
         .take(limit)
@@ -86,7 +83,7 @@ fun List<HistoryEntry>.normalize(limit: Int) =
 
 class SimpleHistorian(
     private val imperium: ImperiumConfig,
-    private val mindustry: MindustryConfig,
+    private val config: ImperiumConfig,
     private val users: UserManager,
     private val renderer: HistoryRenderer,
     private val messenger: Messenger,
@@ -108,8 +105,7 @@ class SimpleHistorian(
         setProvider<UnitFactory.UnitFactoryBuild>(UNIT_FACTORY_CONFIGURATION_FACTORY)
 
         messenger.function<HistoryRequestMessage, HistoryResponseMessage> { request ->
-            if (!request.server.equals(imperium.server.name, ignoreCase = true))
-                return@function null
+            if (!request.server.equals(imperium.server.name, ignoreCase = true)) return@function null
             val user = users.findById(request.player) ?: return@function null
             val (team, unit) =
                 runMindustryThread {
@@ -118,11 +114,9 @@ class SimpleHistorian(
                 }
             HistoryResponseMessage(
                 ComponentStringBuilder.plain(KeyContainer.empty())
-                    .append(
-                        renderer.render(
-                            getHistory(user.uuid).normalize(30),
-                            HistoryActor(user.uuid, team, unit)))
-                    .toString())
+                    .append(renderer.render(getHistory(user.uuid).normalize(30), HistoryActor(user.uuid, team, unit)))
+                    .toString()
+            )
         }
     }
 
@@ -145,14 +139,14 @@ class SimpleHistorian(
         }
 
         val block: Block =
-            if (event.breaking) (event.tile.build as ConstructBlock.ConstructBuild).current
-            else event.tile.block()
+            if (event.breaking) (event.tile.build as ConstructBlock.ConstructBuild).current else event.tile.block()
         this.addEntry(
             event.tile.build,
             block,
             event.unit,
             if (event.breaking) HistoryEntry.Type.BREAK else HistoryEntry.Type.PLACE,
-            event.config)
+            event.config,
+        )
     }
 
     @EventHandler(priority = Priority.HIGH)
@@ -177,12 +171,7 @@ class SimpleHistorian(
         if (event.player == null) {
             return
         }
-        this.addEntry(
-            event.tile,
-            event.tile.block(),
-            event.player.unit(),
-            HistoryEntry.Type.CONFIGURE,
-            event.value)
+        this.addEntry(event.tile, event.tile.block(), event.player.unit(), HistoryEntry.Type.CONFIGURE, event.value)
     }
 
     @EventHandler(priority = Priority.HIGH)
@@ -196,20 +185,11 @@ class SimpleHistorian(
         if (event.unit == null || event.build.rotation == event.previous) {
             return
         }
-        this.addEntry(
-            event.build,
-            event.build.block(),
-            event.unit,
-            HistoryEntry.Type.ROTATE,
-            event.build.config())
+        this.addEntry(event.build, event.build.block(), event.unit, HistoryEntry.Type.ROTATE, event.build.config())
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun <B : Building> getConfiguration(
-        building: B,
-        type: HistoryEntry.Type,
-        config: Any?,
-    ): BlockConfig? {
+    private fun <B : Building> getConfiguration(building: B, type: HistoryEntry.Type, config: Any?): BlockConfig? {
         if (building.block().configurations.isEmpty) {
             return null
         }
@@ -246,7 +226,7 @@ class SimpleHistorian(
                     building.rotation,
                     configuration,
                     it.pos() != building.tile.pos(),
-                ),
+                )
             )
         }
     }
@@ -254,7 +234,7 @@ class SimpleHistorian(
     private fun addEntry(entry: HistoryEntry) {
         val entries =
             positions.computeIfAbsent(Point2.pack(entry.x, entry.y)) {
-                LimitedList(mindustry.history.tileEntriesLimit)
+                LimitedList(config.mindustry.history.tileEntriesLimit)
             }
         val previous: HistoryEntry? = entries.peekLast()
         // Some blocks have repeating configurations, we don't want to spam the history with them
@@ -264,15 +244,11 @@ class SimpleHistorian(
         entries.add(entry)
         if (entry.actor.player != null && !entry.virtual) {
             players
-                .computeIfAbsent(entry.actor.player) {
-                    LimitedList(mindustry.history.playerEntriesLimit)
-                }
+                .computeIfAbsent(entry.actor.player) { LimitedList(config.mindustry.history.playerEntriesLimit) }
                 .add(entry)
         }
     }
 
     private fun haveSameConfiguration(entryA: HistoryEntry, entryB: HistoryEntry) =
-        entryA.block == entryB.block &&
-            entryA.config == entryB.config &&
-            entryA.type === entryB.type
+        entryA.block == entryB.block && entryA.config == entryB.config && entryA.type === entryB.type
 }

@@ -38,9 +38,7 @@ class RoleSyncListener(instances: InstanceManager) : ImperiumApplication.Listene
     private val messenger = instances.get<Messenger>()
 
     override fun onImperiumInit() {
-        discord.jda.addSuspendingEventListener<GuildMemberJoinEvent> {
-            discord.syncRoles(it.member)
-        }
+        discord.jda.addSuspendingEventListener<GuildMemberJoinEvent> { discord.syncRoles(it.member) }
 
         messenger.consumer<RankChangeEvent> { (id) -> discord.syncRoles(id) }
 
@@ -50,15 +48,12 @@ class RoleSyncListener(instances: InstanceManager) : ImperiumApplication.Listene
     @ImperiumCommand(["sync-roles"])
     suspend fun onSyncRolesCommand(interaction: SlashCommandInteraction) {
         val reply = interaction.deferReply(true).await()
-        val account = accounts.findByDiscord(interaction.user.idLong)
+        val account = accounts.selectByDiscord(interaction.user.idLong)
         if (account == null) {
             reply.sendMessage("You are not linked to a cn account.").await()
             return
         }
         discord.syncRoles(account.id)
-        reply
-            .sendMessage(
-                "Your discord roles have been synchronized with your account rank and achievements.")
-            .await()
+        reply.sendMessage("Your discord roles have been synchronized with your account rank and achievements.").await()
     }
 }

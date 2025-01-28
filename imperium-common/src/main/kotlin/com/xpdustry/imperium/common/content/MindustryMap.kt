@@ -28,13 +28,13 @@ data class MindustryMap(
     val width: Int,
     val height: Int,
     val lastUpdate: Instant,
-    val gamemodes: Set<MindustryGamemode>
+    val gamemodes: Set<MindustryGamemode>,
 ) {
     enum class Difficulty {
         EASY,
         NORMAL,
         HARD,
-        EXPERT
+        EXPERT,
     }
 
     data class Rating(val user: Int, val score: Int, val difficulty: Difficulty)
@@ -44,26 +44,23 @@ data class MindustryMap(
         val difficulty: Difficulty,
         val games: Int,
         val playtime: Duration,
-        val record: Int?
+        val record: Int?,
     )
 
-    // TODO
-    //   Add metadata instead of "winner" for special gamemodes
-    //   Such as PVP where I can add a MVP, or hexed with the winner, etc...
-    data class Game(
-        val id: Int,
-        val map: Int,
-        val server: String,
-        val start: Instant,
-        val playtime: Duration,
-        val unitsCreated: Int,
-        val ennemiesKilled: Int,
-        val wavesLasted: Int,
-        val buildingsConstructed: Int,
-        val buildingsDeconstructed: Int,
-        val buildingsDestroyed: Int,
-        val winner: UByte
-    )
+    data class PlayThrough(val id: Int, val map: Int, val data: Data) {
+        data class Data(
+            val server: String,
+            val start: Instant,
+            val playtime: Duration,
+            val unitsCreated: Int,
+            val ennemiesKilled: Int,
+            val wavesLasted: Int,
+            val buildingsConstructed: Int,
+            val buildingsDeconstructed: Int,
+            val buildingsDestroyed: Int,
+            val winner: UByte,
+        )
+    }
 
     companion object {
         const val MAX_MAP_FILE_SIZE = 4 * 1024 * 1024

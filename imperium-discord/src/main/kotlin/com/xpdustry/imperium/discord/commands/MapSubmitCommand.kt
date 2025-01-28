@@ -21,7 +21,7 @@ import com.xpdustry.imperium.common.account.Rank
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.command.ImperiumCommand
 import com.xpdustry.imperium.common.command.Lowercase
-import com.xpdustry.imperium.common.config.DiscordConfig
+import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.content.MindustryMap
 import com.xpdustry.imperium.common.content.MindustryMapManager
 import com.xpdustry.imperium.common.database.IdentifierCodec
@@ -55,19 +55,18 @@ import net.dv8tion.jda.api.interactions.components.buttons.ButtonInteraction
 import net.dv8tion.jda.api.utils.FileUpload
 
 class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listener {
-    private val config = instances.get<DiscordConfig>()
+    private val config = instances.get<ImperiumConfig>()
     private val maps = instances.get<MindustryMapManager>()
     private val content = instances.get<MindustryContentHandler>()
     private val discord = instances.get<DiscordService>()
     private val codec = instances.get<IdentifierCodec>()
 
-    @Suppress("DuplicatedCode")
     @ImperiumCommand(["map", "submit"])
     suspend fun onMapSubmitCommand(
         interaction: SlashCommandInteraction,
         map: Message.Attachment,
         @Lowercase updating: String? = null,
-        notes: String? = null
+        notes: String? = null,
     ) {
         val reply = interaction.deferReply(false).await()
         if (!map.fileName.endsWith(".msav")) {
@@ -88,9 +87,7 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
         }
 
         if (map.size > MindustryMap.MAX_MAP_FILE_SIZE) {
-            reply
-                .sendMessage("The map file is too big, please submit reasonably sized maps.")
-                .await()
+            reply.sendMessage("The map file is too big, please submit reasonably sized maps.").await()
             return
         }
 
@@ -102,17 +99,17 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
         }
         val (meta, preview) = result.getOrThrow()
 
-        if (meta.width > MindustryMap.MAX_MAP_SIDE_SIZE ||
-            meta.height > MindustryMap.MAX_MAP_SIDE_SIZE) {
+        if (meta.width > MindustryMap.MAX_MAP_SIDE_SIZE || meta.height > MindustryMap.MAX_MAP_SIDE_SIZE) {
             reply
                 .sendMessage(
-                    "The map is bigger than ${MindustryMap.MAX_MAP_SIDE_SIZE} blocks, please submit reasonably sized maps.")
+                    "The map is bigger than ${MindustryMap.MAX_MAP_SIDE_SIZE} blocks, please submit reasonably sized maps."
+                )
                 .await()
             return
         }
 
         val channel =
-            discord.getMainServer().getTextChannelById(config.channels.maps)
+            discord.getMainServer().getTextChannelById(config.discord.channels.maps)
                 ?: throw IllegalStateException("Map submission channel not found")
 
         val message =
@@ -121,7 +118,9 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
                     MessageCreate {
                         files +=
                             FileUpload.fromStreamSupplier(
-                                meta.name.stripMindustryColors(), bytes::inputStream)
+                                "${meta.name.stripMindustryColors()}.msav",
+                                bytes::inputStream,
+                            )
                         files += FileUpload.fromStreamSupplier("preview.png", preview::inputStream)
                         embeds += Embed {
                             color = MINDUSTRY_ACCENT_COLOR.rgb
@@ -129,10 +128,7 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
                             field("Submitter", interaction.member!!.asMention, false)
                             field("Name", meta.name.stripMindustryColors(), false)
                             field("Author", meta.author?.stripMindustryColors() ?: "Unknown", false)
-                            field(
-                                "Description",
-                                meta.description?.stripMindustryColors() ?: "Unknown",
-                                false)
+                            field("Description", meta.description?.stripMindustryColors() ?: "Unknown", false)
                             field("Size", "${preview.width} x ${preview.height}", false)
                             if (notes != null) {
                                 field("Notes", notes, false)
@@ -144,12 +140,11 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
                         }
                         components +=
                             ActionRow.of(
-                                Button.primary(MAP_ACCEPT_BUTTON, "Accept")
-                                    .withEmoji(ImperiumEmojis.CHECK_MARK),
-                                Button.danger(MAP_REJECT_BUTTON, "Reject")
-                                    .withEmoji(ImperiumEmojis.WASTE_BASKET),
+                                Button.primary(MAP_ACCEPT_BUTTON, "Accept").withEmoji(ImperiumEmojis.CHECK_MARK),
+                                Button.danger(MAP_REJECT_BUTTON, "Reject").withEmoji(ImperiumEmojis.WASTE_BASKET),
                             )
-                    })
+                    }
+                )
                 .await()
 
         message
@@ -161,9 +156,9 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
             .sendMessageEmbeds(
                 Embed {
                     color = MINDUSTRY_ACCENT_COLOR.rgb
-                    description =
-                        "Your map has been submitted for review. Check the status [here](${message.jumpUrl})."
-                })
+                    description = "Your map has been submitted for review. Check the status [here](${message.jumpUrl})."
+                }
+            )
             .await()
     }
 
@@ -180,16 +175,13 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
     private suspend fun onMapAccept(interaction: ButtonInteraction) {
         val reply = interaction.deferReply(true).await()
         val attachment = interaction.message.attachments.first()
-        val meta =
-            attachment.proxy.download().await().use { content.getMapMetadata(it).getOrThrow() }
+        val meta = attachment.proxy.download().await().use { content.getMapMetadata(it).getOrThrow() }
 
         val target =
             interaction.message.embeds.first().getFieldValue("Updating")?.let {
                 val result = maps.findMapById(codec.decode(it.replace("`", "")))
                 if (result == null) {
-                    reply
-                        .sendMessage("The map to update no longer exist! Report it to a moderator.")
-                        .await()
+                    reply.sendMessage("The map to update no longer exist! Report it to a moderator.").await()
                     return
                 }
                 result
@@ -204,7 +196,8 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
                     author = meta.author?.stripMindustryColors(),
                     width = meta.width,
                     height = meta.height,
-                    stream = { attachment.proxy.download().join() })
+                    stream = { attachment.proxy.download().join() },
+                )
         } else {
             id = target.id
             maps.updateMap(
@@ -213,7 +206,8 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
                 author = meta.author?.stripMindustryColors(),
                 width = meta.width,
                 height = meta.height,
-                stream = { attachment.proxy.download().join() })
+                stream = { attachment.proxy.download().join() },
+            )
         }
 
         updateSubmissionEmbed(interaction, Color.GREEN, "accepted", id)
@@ -231,12 +225,12 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
                 Embed(interaction.message.embeds.first()) {
                     this@Embed.color = color.rgb
                     field("Reviewer", interaction.member!!.asMention, false)
-                    if (id != null &&
-                        interaction.message.embeds.first().getFieldValue("Updating") == null) {
+                    if (id != null && interaction.message.embeds.first().getFieldValue("Updating") == null) {
                         field("Identifier", "`${codec.encode(id)}`", false)
                     }
                     image = "attachment://preview2.png"
-                })
+                }
+            )
             .setComponents()
             .setFiles(
                 FileUpload.fromStreamSupplier(interaction.message.attachments.first().fileName) {
@@ -247,18 +241,19 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
                 FileUpload.fromStreamSupplier("preview2.png") {
                     @Suppress("BlockingMethodInNonBlockingContext")
                     URI(interaction.message.embeds.first().image!!.url!!).toURL().openStream()
-                })
+                },
+            )
             .await()
 
         val member =
             discord
                 .getMainServer()
                 .getMemberById(
-                    MENTION_TAG_REGEX.find(
-                            interaction.message.embeds.first().getFieldValue("Submitter")!!)!!
+                    MENTION_TAG_REGEX.find(interaction.message.embeds.first().getFieldValue("Submitter")!!)!!
                         .groups[1]!!
                         .value
-                        .toLong()) ?: return
+                        .toLong()
+                ) ?: return
 
         // TODO Band-aid fix for contributor, cleanup this damn role system
         discord.getMainServer().getRolesByName("Contributor", true).singleOrNull()?.let {
@@ -273,11 +268,11 @@ class MapSubmitCommand(instances: InstanceManager) : ImperiumApplication.Listene
                     this@Embed.color = color.rgb
                     description =
                         "Your [map submission](${interaction.message.jumpUrl}) has been $verb by ${interaction.member!!.asMention}."
-                })
+                }
+            )
     }
 
-    private fun MessageEmbed.getFieldValue(name: String): String? =
-        fields.find { it.name == name }?.value
+    private fun MessageEmbed.getFieldValue(name: String): String? = fields.find { it.name == name }?.value
 
     companion object {
         private val MENTION_TAG_REGEX = Regex("<@!?(\\d+)>")
