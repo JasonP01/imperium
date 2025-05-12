@@ -19,6 +19,7 @@ package com.xpdustry.imperium.mindustry.game
 
 import arc.util.serialization.*
 import com.google.gson.Gson
+import com.xpdustry.distributor.api.Distributor
 import com.xpdustry.distributor.api.annotation.EventHandler
 import com.xpdustry.distributor.api.key.Key;
 import com.xpdustry.distributor.api.player.MUUID;
@@ -96,7 +97,7 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
             is AccountResult.Success -> {
                 player.asAudience.sendAnnouncement(gui_login_success())
                 Distributor.get().eventBus.post(PlayerLoginEvent(player))
-            },
+            }
             AccountResult.NotFound -> {
                 player.asAudience.sendAnnouncement(gui_login_failure_invalid_credentials())
             }
@@ -109,16 +110,3 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
         return MindustrySession.Key(muuid.uuidAsLong, muuid.usidAsLong, address)
     }
 }
-
-when (result) {
-            is AccountResult.Success -> {
-                window.viewer.asAudience.sendAnnouncement(gui_login_success())
-                Distributor.get().eventBus.post(PlayerLoginEvent(window.viewer))
-            }
-            AccountResult.WrongPassword,
-            AccountResult.NotFound -> {
-                window.show()
-                window.viewer.asAudience.sendAnnouncement(gui_login_failure_invalid_credentials())
-            }
-            else -> handleAccountResult(result, window)
-        }
