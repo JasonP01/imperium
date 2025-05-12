@@ -17,6 +17,8 @@
  */
 package com.xpdustry.imperium.mindustry.game
 
+import arc.util.serialization.*
+import com.google.gson.Gson
 import com.xpdustry.distributor.api.annotation.EventHandler
 import com.xpdustry.distributor.api.key.Key;
 import com.xpdustry.distributor.api.player.MUUID;
@@ -48,6 +50,7 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
             val username = json.getString("username")
             val password = json.getString("password").toCharArray()
             if (username.isEmpty() || password.isEmpty()) {
+                // TODO: translations
                 player.sendMessage("[scarlet]Login failed: Missing username or password.")
                 return@addPacketHandler
             }
@@ -58,24 +61,27 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
     override fun isFooClient(player: Player) = fooClients[player] == true
 
     @EventHandler
-    fun onPlayerJoin(event: PlayerJoin) {
+    private fun onPlayerJoin(event: PlayerJoin) {
         delay(2000) // ensure they sent the packet
+        // FINISHME: this should wait for a login attempt before sending the packet
         if (isFooClient(event.player)) {
             val exists = accounts.existsBySession(event.player.sessionKey)
             if (!exists) {
                 event.player.sendMessage(
+                    // TODO: translations
                     """
                     [scarlet]You are not logged in or do not have an account.
-                    Your rank has been set to Rank.EVERYONE.length
-                    Please login to update your rank.length
+                    Your rank has been set to everyone.
+                    Please login to update your rank.
                     """.trimIndent()
                     )
             }
             val account = accounts.selectBySession(event.player.sessionKey)
 
-            val playerdata = Vars.netServer.createPacket("playerdata")
-            playerdata.put("id", event.player.id)
-            playerdata.put("rank", account?.rank?.ordinal ?: 0)
+            val playerdata = Gson().toJson(mapOf(
+                "id" to event.player.id,
+                "rank" to account?.rank.ordinal ?: 0
+            ))
 
             Call.serverPacketReliable("playerdata", playerdata, event.player.con)
         }
