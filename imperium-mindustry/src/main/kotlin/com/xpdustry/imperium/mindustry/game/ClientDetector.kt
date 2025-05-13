@@ -24,7 +24,7 @@ import com.xpdustry.distributor.api.annotation.EventHandler
 import com.xpdustry.distributor.api.key.Key;
 import com.xpdustry.distributor.api.player.MUUID;
 import com.xpdustry.distributor.api.plugin.MindustryPlugin
-import com.xpdustry.imperium.common.account.AccountManager
+import com.xpdustry.imperium.common.account.*
 import com.xpdustry.imperium.mindustry.account.*
 import com.xpdustry.imperium.common.lifecycle.LifecycleListener
 import com.xpdustry.imperium.common.session.MindustrySession;
@@ -32,8 +32,11 @@ import com.xpdustry.imperium.common.session.MindustrySessionService;
 import com.xpdustry.imperium.mindustry.misc.PlayerMap
 import com.xpdustry.imperium.mindustry.misc.sessionKey
 import jakarta.inject.Inject
+import java.net.InetAddress
+import kotlinx.coroutines.delay
 import mindustry.Vars
-import mindustry.gen.Player
+import mindustry.game.EventType
+import mindustry.gen.*
 import mindustry.net.*
 
 interface ClientDetector {
@@ -62,7 +65,7 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
     override fun isFooClient(player: Player) = fooClients[player] == true
 
     @EventHandler
-    private fun onPlayerJoin(event: PlayerJoin) {
+    suspend private fun onPlayerJoin(event: EventType.PlayerJoin) {
         delay(2000) // ensure they sent the packet
         // FINISHME: this should wait for a login attempt before sending the packet
         if (isFooClient(event.player)) {
@@ -81,7 +84,7 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
 
             val playerdata = Gson().toJson(mapOf(
                 "id" to event.player.id,
-                "rank" to account?.rank.ordinal ?: 0
+                "rank" to account?.rank!!.ordinal ?: 0
             ))
 
             Call.serverPacketReliable("playerdata", playerdata, event.player.con)
@@ -101,10 +104,14 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
             AccountResult.NotFound -> {
                 player.asAudience.sendAnnouncement(gui_login_failure_invalid_credentials())
             }
+            else -> {
+                // This shouldnt happen
+                return
+            }
         }
     }
 
-    private fun key(val player: Player): MindustrySession.Key {
+    private fun key(player: Player): MindustrySession.Key {
         val address = InetAddress.getByName(player.ip());
         val muuid = MUUID.from(player);
         return MindustrySession.Key(muuid.uuidAsLong, muuid.usidAsLong, address)
