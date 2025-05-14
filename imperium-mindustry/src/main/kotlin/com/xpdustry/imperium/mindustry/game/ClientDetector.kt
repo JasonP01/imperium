@@ -29,12 +29,14 @@ import com.xpdustry.imperium.mindustry.account.*
 import com.xpdustry.imperium.common.lifecycle.LifecycleListener
 import com.xpdustry.imperium.common.session.MindustrySession;
 import com.xpdustry.imperium.common.session.MindustrySessionService;
+import com.xpdustry.imperium.mindustry.misc.asAudience
 import com.xpdustry.imperium.mindustry.misc.PlayerMap
 import com.xpdustry.imperium.mindustry.misc.sessionKey
 import jakarta.inject.Inject
 import java.net.InetAddress
 import kotlinx.coroutines.delay
 import mindustry.Vars
+import mindustry.core.NetServer
 import mindustry.game.EventType
 import mindustry.gen.*
 import mindustry.net.*
@@ -81,13 +83,12 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
                     )
             }
             val account = accounts.selectBySession(event.player.sessionKey)
+            val playerdataInit = mapOf(String to Integer)
+            playerdataInit["id"] = event.player.id
+            playerdataInit["rank"] = account?.rank?.ordinal ?: 0
+            val playerdata = Gson().toJson(playerdataInit)
 
-            val playerdata = Gson().toJson(mapOf(
-                "id" to event.player.id,
-                "rank" to account?.rank!!.ordinal ?: 0
-            ))
-
-            Call.serverPacketReliable("playerdata", playerdata, event.player.con)
+            Vars.netServer.serverPacketReliable(event.player, "playerdata", playerdata)
         }
     }
 
@@ -101,7 +102,7 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
                 player.asAudience.sendAnnouncement(gui_login_success())
                 Distributor.get().eventBus.post(PlayerLoginEvent(player))
             }
-            AccountResult.NotFound -> {
+            is AccountResult.NotFound -> {
                 player.asAudience.sendAnnouncement(gui_login_failure_invalid_credentials())
             }
             else -> {
