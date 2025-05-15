@@ -21,16 +21,16 @@ import arc.util.serialization.*
 import com.google.gson.Gson
 import com.xpdustry.distributor.api.Distributor
 import com.xpdustry.distributor.api.annotation.EventHandler
-import com.xpdustry.distributor.api.key.Key;
-import com.xpdustry.distributor.api.player.MUUID;
+import com.xpdustry.distributor.api.key.Key
+import com.xpdustry.distributor.api.player.MUUID
 import com.xpdustry.distributor.api.plugin.MindustryPlugin
 import com.xpdustry.imperium.common.account.*
-import com.xpdustry.imperium.mindustry.account.*
 import com.xpdustry.imperium.common.lifecycle.LifecycleListener
-import com.xpdustry.imperium.common.session.MindustrySession;
-import com.xpdustry.imperium.common.session.MindustrySessionService;
-import com.xpdustry.imperium.mindustry.misc.asAudience
+import com.xpdustry.imperium.common.session.MindustrySession
+import com.xpdustry.imperium.common.session.MindustrySessionService
+import com.xpdustry.imperium.mindustry.account.*
 import com.xpdustry.imperium.mindustry.misc.PlayerMap
+import com.xpdustry.imperium.mindustry.misc.asAudience
 import com.xpdustry.imperium.mindustry.misc.sessionKey
 import jakarta.inject.Inject
 import java.net.InetAddress
@@ -45,14 +45,20 @@ interface ClientDetector {
     fun isFooClient(player: Player): Boolean
 }
 
-class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private val accounts: AccountManager, private val sessions: MindustrySessionService) : ClientDetector, LifecycleListener {
+class SimpleClientDetector
+@Inject
+constructor(
+    plugin: MindustryPlugin,
+    private val accounts: AccountManager,
+    private val sessions: MindustrySessionService,
+) : ClientDetector, LifecycleListener {
 
     private val fooClients = PlayerMap<Boolean>(plugin)
 
     override fun onImperiumInit() {
         Vars.netServer.addPacketHandler("fooCheck") { player, _ -> fooClients[player] = true }
         println("Registered fooAutoLogin and fooCheck")
-        Vars.netServer.addPacketHandler("fooAutoLogin") { player, data -> 
+        Vars.netServer.addPacketHandler("fooAutoLogin") { player, data ->
             val json = JsonReader().parse(data)
             val username = json.getString("username")
             val password = json.getString("password").toCharArray()
@@ -83,25 +89,20 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
                     [scarlet]You are not logged in or do not have an account.
                     Your rank has been set to everyone.
                     Please login to update your rank.
-                    """.trimIndent()
-                    )
+                    """
+                        .trimIndent()
+                )
             }
             val account = accounts.selectBySession(event.player.sessionKey)
 
-            val playerdata = Gson().toJson(mapOf(
-                "id" to event.player.id,
-                "rank" to (account?.rank?.ordinal ?: 0)
-            ))
+            val playerdata = Gson().toJson(mapOf("id" to event.player.id, "rank" to (account?.rank?.ordinal ?: 0)))
             println("Sending playerdata: $playerdata to ${event.player.name}")
             mindustry.core.NetServer.serverPacketReliable(event.player, "playerdata", playerdata)
         }
     }
 
     private fun login(player: Player, username: String, password: CharArray) {
-        val result = sessions.login(
-            key(player),
-            username,
-            password)
+        val result = sessions.login(key(player), username, password)
         when (result) {
             is AccountResult.Success -> {
                 player.asAudience.sendAnnouncement(gui_login_success())
@@ -118,8 +119,8 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
     }
 
     private fun key(player: Player): MindustrySession.Key {
-        val address = InetAddress.getByName(player.ip());
-        val muuid = MUUID.from(player);
+        val address = InetAddress.getByName(player.ip())
+        val muuid = MUUID.from(player)
         return MindustrySession.Key(muuid.uuidAsLong, muuid.usidAsLong, address)
     }
 }
