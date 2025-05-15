@@ -51,6 +51,7 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
 
     override fun onImperiumInit() {
         Vars.netServer.addPacketHandler("fooCheck") { player, _ -> fooClients[player] = true }
+        println("Registered fooAutoLogin and fooCheck")
         Vars.netServer.addPacketHandler("fooAutoLogin") { player, data -> 
             val json = JsonReader().parse(data)
             val username = json.getString("username")
@@ -68,10 +69,13 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
 
     @EventHandler
     suspend private fun onPlayerJoin(event: EventType.PlayerJoin) {
+        println("onPlayerJoin fired")
         delay(2000) // ensure they sent the packet
         // FINISHME: this should wait for a login attempt before sending the packet
         if (isFooClient(event.player)) {
+            println("Is foos client")
             val exists = accounts.existsBySession(event.player.sessionKey)
+            println("Account exists: $exists")
             if (!exists) {
                 event.player.sendMessage(
                     // TODO: translations
@@ -83,17 +87,18 @@ class SimpleClientDetector @Inject constructor(plugin: MindustryPlugin, private 
                     )
             }
             val account = accounts.selectBySession(event.player.sessionKey)
-            val playerdataInit = mapOf(String to Integer)
-            playerdataInit["id"] = event.player.id
-            playerdataInit["rank"] = account?.rank?.ordinal ?: 0
-            val playerdata = Gson().toJson(playerdataInit)
 
-            Vars.netServer.serverPacketReliable(event.player, "playerdata", playerdata)
+            val playerdata = Gson().toJson(mapOf(
+                "id" to event.player.id,
+                "rank" to (account?.rank?.ordinal ?: 0)
+            ))
+            println("Sending playerdata: $playerdata to ${event.player.name}")
+            mindustry.core.NetServer.serverPacketReliable(event.player, "playerdata", playerdata)
         }
     }
 
     private fun login(player: Player, username: String, password: CharArray) {
-        val result = this.sessions.login(
+        val result = sessions.login(
             key(player),
             username,
             password)
