@@ -33,6 +33,7 @@ import com.xpdustry.imperium.mindustry.component.ImperiumComponentRendererProvid
 import com.xpdustry.imperium.mindustry.config.ConventionListener;
 import com.xpdustry.imperium.mindustry.control.ControlListener;
 import com.xpdustry.imperium.mindustry.formation.FormationListener;
+import com.xpdustry.imperium.mindustry.events.LimitedOres;
 import com.xpdustry.imperium.mindustry.game.AlertListener;
 import com.xpdustry.imperium.mindustry.game.AntiGriefListener;
 import com.xpdustry.imperium.mindustry.game.ChangelogCommand;
@@ -150,6 +151,10 @@ public final class ImperiumPlugin extends AbstractMindustryPlugin {
             this.lifecycle.addListener(HubListener.class);
         } else {
             Core.settings.remove("totalPlayers");
+        }
+
+        if (config.mindustry().gamemode() == MindustryGamemode.EVENTS) {
+            this.lifecycle.addListener(LimitedOres.class);
         }
 
         // TODO Separate listener ?
