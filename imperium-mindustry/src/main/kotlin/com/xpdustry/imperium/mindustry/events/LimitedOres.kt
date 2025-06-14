@@ -1,3 +1,20 @@
+/*
+ * Imperium, the software collection powering the Chaotic Neutral network.
+ * Copyright (C) 2024  Xpdustry
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 package com.xpdustry.imperium.mindustry.events
 
 import com.xpdustry.distributor.api.annotation.EventHandler
@@ -16,6 +33,7 @@ import mindustry.content.Blocks
 import mindustry.content.Items
 import mindustry.gen.Groups
 import mindustry.type.Item
+import mindustry.world.Tile
 import mindustry.world.blocks.environment.OreBlock
 import mindustry.world.blocks.environment.StaticWall
 import mindustry.world.blocks.production.BeamDrill
@@ -25,8 +43,6 @@ import mindustry.world.blocks.production.Drill.DrillBuild
 import mindustry.world.blocks.production.WallCrafter
 import mindustry.world.blocks.production.WallCrafter.WallCrafterBuild
 import mindustry.world.meta.Attribute
-import mindustry.world.Tile
-
 
 class LimitedOres : ImperiumApplication.Listener {
     // Use (x, y) pairs as keys instead of Tile
@@ -82,14 +98,17 @@ class LimitedOres : ImperiumApplication.Listener {
             }
         }
         Groups.build.each { b ->
-            if ((b is BeamDrill.BeamDrillBuild && b.efficiency > 0) ||
-                (b is WallCrafter.WallCrafterBuild && b.efficiency > 0)) {
+            if (
+                (b is BeamDrill.BeamDrillBuild && b.efficiency > 0) ||
+                    (b is WallCrafter.WallCrafterBuild && b.efficiency > 0)
+            ) {
 
-                val facingTiles = when (b) {
-                    is BeamDrill.BeamDrillBuild -> b.facing.toList()
-                    is WallCrafter.WallCrafterBuild -> getFacingTiles(b)
-                    else -> emptyList()
-                }
+                val facingTiles =
+                    when (b) {
+                        is BeamDrill.BeamDrillBuild -> b.facing.toList()
+                        is WallCrafter.WallCrafterBuild -> getFacingTiles(b)
+                        else -> emptyList()
+                    }
 
                 for (t in facingTiles) {
                     if (t == null) continue
@@ -146,7 +165,10 @@ class LimitedOres : ImperiumApplication.Listener {
             val (item, value) = pair
             val tile = Vars.world.tile(coords.first, coords.second) ?: continue
             if (value <= 1e-6) {
-                if (tile.block() is StaticWall && tile.block().attributes.get(Attribute.sand) != 0F || tile.block().itemDrop != null) {
+                if (
+                    tile.block() is StaticWall && tile.block().attributes.get(Attribute.sand) != 0F ||
+                        tile.block().itemDrop != null
+                ) {
                     tile.setNet(Blocks.stoneWall)
                     blocksToRemove.add(coords)
                 }
@@ -167,13 +189,14 @@ class LimitedOres : ImperiumApplication.Listener {
         val cornerY = ty - (size - 1) / 2
 
         for (i in 0 until size) {
-            val (rx, ry) = when (build.rotation) {
-                0 -> cornerX + size to cornerY + i
-                1 -> cornerX + i to cornerY + size
-                2 -> cornerX - 1 to cornerY + i
-                3 -> cornerX + i to cornerY - 1
-                else -> continue
-            }
+            val (rx, ry) =
+                when (build.rotation) {
+                    0 -> cornerX + size to cornerY + i
+                    1 -> cornerX + i to cornerY + size
+                    2 -> cornerX - 1 to cornerY + i
+                    3 -> cornerX + i to cornerY - 1
+                    else -> continue
+                }
 
             val tile = Vars.world.tile(rx, ry)
             if (tile != null) tiles.add(tile)
