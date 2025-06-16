@@ -45,56 +45,55 @@ import mindustry.world.blocks.production.WallCrafter.WallCrafterBuild
 import mindustry.world.meta.Attribute
 
 class LimitedOres : LifecycleListener {
-    // Regular ores (eg copper, lead)
-    private val ores = mutableMapOf<Tile, Pair<Item, Double>>()
-    // Block ores (graphite wall)
-    private val blockOres = mutableMapOf<Tile, Pair<Item, Double>>()
-    // Floor ores (sand)
-    private val floorOres = mutableMapOf<Tile, Pair<Item, Double>>()
-    // How much the ore decays every second by chance
-    private var config = 0.02
-    private var chance = 30
+    private val ores = mutableMapOf<Pair<Int, Int>, Pair<Item, Double>>()
+    private val blockOres = mutableMapOf<Pair<Int, Int>, Pair<Item, Double>>()
+    private val floorOres = mutableMapOf<Pair<Int, Int>, Pair<Item, Double>>()
+
+    private var config = 0.005
+    private var chance = 15
     private var mapIndexed = false
 
-    private val oresToRemove = mutableListOf<Tile>()
-    private val floorsToRemove = mutableListOf<Tile>()
-    private val blocksToRemove = mutableListOf<Tile>()
+    private val oresToRemove = mutableListOf<Pair<Int, Int>>()
+    private val floorsToRemove = mutableListOf<Pair<Int, Int>>()
+    private val blocksToRemove = mutableListOf<Pair<Int, Int>>()
 
     @EventHandler
     fun onMapStart(event: MenuToPlayEvent) {
         for (tile in Vars.world.tiles) {
-            // We will replace graphiticWall with carbonWall
-            if (tile.floor().itemDrop != null) floorOres[tile] = Pair(tile.floor().itemDrop, 1.0)
-            if (tile.overlay() != null && tile.overlay() is OreBlock) ores[tile] = Pair(tile.overlay().itemDrop, 1.0)
+            val coords = tile.x.toInt() to tile.y.toInt()
+            if (tile.floor().itemDrop != null) floorOres[coords] = tile.floor().itemDrop to 1.0
+            if (tile.overlay() != null && tile.overlay() is OreBlock) ores[coords] = tile.overlay().itemDrop to 1.0
             if (tile.block() != null) {
-                if (tile.block().itemDrop != null) blockOres[tile] = Pair(tile.block().itemDrop, 1.0)
-                // This is ineffiecent, alot of blocks have this attribute, make it look for air nearby?
-                else if (tile.block().attributes.get(Attribute.sand) > 0F) blockOres[tile] = Pair(Items.sand, 1.0)
+                if (tile.block().itemDrop != null) blockOres[coords] = tile.block().itemDrop to 1.0
+                else if (tile.block().attributes.get(Attribute.sand) > 0F) blockOres[coords] = Items.sand to 1.0
             }
         }
         mapIndexed = true
     }
 
-    @TaskHandler(interval = 1, unit = MindustryTimeUnit.SECONDS)
+    @TaskHandler(interval = 3, unit = MindustryTimeUnit.SECONDS)
     fun onOreDecay() {
+        if (Vars.state.isPaused) return
         if (!mapIndexed) return
-        for ((tile, pair) in ores) {
+        for ((coords, pair) in ores) {
             val (item, value) = pair
+            val tile = Vars.world.tile(coords.first, coords.second) ?: continue
             val build = tile.build
             if (build is Drill.DrillBuild && build.dominantItem == item && build.efficiency > 0) {
                 val random = Random.nextInt(1, 101)
-                if (random < chance) {
-                    ores[tile] = Pair(item, value - config)
+                if (random <= chance) {
+                    ores[coords] = item to value - config
                 }
             }
         }
-        for ((tile, pair) in floorOres) {
+        for ((coords, pair) in floorOres) {
             val (item, value) = pair
+            val tile = Vars.world.tile(coords.first, coords.second) ?: continue
             val build = tile.build
             if (build is Drill.DrillBuild && build.dominantItem == item && build.efficiency > 0) {
                 val random = Random.nextInt(1, 101)
-                if (random < chance) {
-                    floorOres[tile] = Pair(item, value - config)
+                if (random <= chance) {
+                    floorOres[coords] = item to value - config
                 }
             }
         }
@@ -112,10 +111,21 @@ class LimitedOres : LifecycleListener {
                     }
 
                 for (t in facingTiles) {
-                    val (item, value) = blockOres[t] ?: continue
+                    if (t == null) continue
+                    val coords = t.x.toInt() to t.y.toInt()
+                    if (b is BeamDrill.BeamDrillBuild && t.overlay()?.itemDrop != null) {
+                        val (oitem, ovalue) = ores[coords] ?: continue
+                        val orandom = Random.nextInt(1, 101)
+                        if (orandom <= chance) {
+                            ores[coords] = oitem to ovalue - config
+                        }
+                    }
+                    // Don't decay blocks from plasma bores
+                    if (t.block() != Blocks.graphiticWall && b is BeamDrill.BeamDrillBuild) continue
+                    val (item, value) = blockOres[coords] ?: continue
                     val random = Random.nextInt(1, 101)
-                    if (random < chance) {
-                        blockOres[t] = Pair(item, value - config)
+                    if (random <= chance) {
+                        blockOres[coords] = item to value - config
                     }
                 }
             }
@@ -139,34 +149,54 @@ class LimitedOres : LifecycleListener {
         sender.reply("Current decay rate: $config, $chance")
     }
 
+    @ImperiumCommand(["entry"], Rank.ADMIN)
+    @ClientSide
+    @ServerSide
+    private fun getEntry(sender: CommandSender, x: Int, y: Int, type: String) {
+        when (type) {
+            "block" -> {
+                sender.reply("${blockOres[Pair(x, y)]}")
+            }
+            "floor" -> {
+                sender.reply("${floorOres[Pair(x, y)]}")
+            }
+            "overlay" -> {
+                sender.reply("${ores[Pair(x, y)]}")
+            }
+            else -> sender.reply("Invalid lookup type")
+        }
+    }
+
     fun onOreDecayRemoval() {
-        for ((tile, pair) in ores) {
+        oresToRemove.clear()
+        floorsToRemove.clear()
+        blocksToRemove.clear()
+        for ((coords, pair) in ores) {
             val (item, value) = pair
-            if (value <= 0.0) {
-                if (tile.overlay().itemDrop == item) {
-                    tile.setOverlayNet(Blocks.air.asFloor())
-                    oresToRemove.add(tile)
-                }
+            val tile = Vars.world.tile(coords.first, coords.second) ?: continue
+            if (value <= 1e-6 && tile.overlay().itemDrop == item) {
+                tile.setOverlayNet(Blocks.air.asFloor())
+                oresToRemove.add(coords)
             }
         }
-        for ((tile, pair) in floorOres) {
+        for ((coords, pair) in floorOres) {
             val (item, value) = pair
-            if (value <= 0.0) {
-                if (tile.floor().itemDrop == item) {
-                    tile.setFloorNet(Blocks.charr.asFloor())
-                    floorsToRemove.add(tile)
-                }
+            val tile = Vars.world.tile(coords.first, coords.second) ?: continue
+            if (value <= 1e-6 && tile.floor().itemDrop == item) {
+                tile.setFloorNet(Blocks.charr.asFloor())
+                floorsToRemove.add(coords)
             }
         }
-        for ((tile, pair) in blockOres) {
+        for ((coords, pair) in blockOres) {
             val (item, value) = pair
-            if (value <= 0.0) {
+            val tile = Vars.world.tile(coords.first, coords.second) ?: continue
+            if (value <= 1e-6) {
                 if (
                     tile.block() is StaticWall && tile.block().attributes.get(Attribute.sand) != 0F ||
                         tile.block().itemDrop != null
                 ) {
-                    tile.setNet(Blocks.stone)
-                    blocksToRemove.add(tile)
+                    tile.setNet(Blocks.dirtWall)
+                    blocksToRemove.add(coords)
                 }
             }
         }
