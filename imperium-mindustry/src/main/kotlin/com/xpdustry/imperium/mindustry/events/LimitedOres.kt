@@ -74,6 +74,7 @@ class LimitedOres : ImperiumApplication.Listener {
 
     @TaskHandler(interval = 3, unit = MindustryTimeUnit.SECONDS)
     fun onOreDecay() {
+        if (Vars.state.isPaused) return
         if (!mapIndexed) return
         for ((coords, pair) in ores) {
             val (item, value) = pair
@@ -113,8 +114,16 @@ class LimitedOres : ImperiumApplication.Listener {
                 for (t in facingTiles) {
                     if (t == null) continue
                     val coords = t.x.toInt() to t.y.toInt()
-                    val pair = blockOres[coords] ?: continue
-                    val (item, value) = pair
+                    if (b is BeamDrill.BeamDrillBuild && t.overlay()?.itemDrop != null) {
+                        val (oitem, ovalue) = ores[coords] ?: continue
+                        val orandom = Random.nextInt(1, 101)
+                        if (orandom <= chance) {
+                            ores[coords] = oitem to ovalue - config
+                        }
+                    }
+                    // Don't decay blocks from plasma bores
+                    if (t.block() != Blocks.graphiticWall && b is BeamDrill.BeamDrillBuild) continue
+                    val (item, value) = blockOres[coords] ?: continue
                     val random = Random.nextInt(1, 101)
                     if (random <= chance) {
                         blockOres[coords] = item to value - config
@@ -139,6 +148,24 @@ class LimitedOres : ImperiumApplication.Listener {
     @ServerSide
     fun onConfigViewCommand(sender: CommandSender) {
         sender.reply("Current decay rate: $config, $chance")
+    }
+
+    @ImperiumCommand(["entry"], Rank.ADMIN)
+    @ClientSide
+    @ServerSide
+    private fun getEntry(sender: CommandSender, x: Int, y: Int, type: String) {
+        when (type) {
+            "block" -> {
+                sender.reply("${blockOres[Pair(x, y)]}")
+            }
+            "floor" -> {
+                sender.reply("${floorOres[Pair(x, y)]}")
+            }
+            "overlay" -> {
+                sender.reply("${ores[Pair(x, y)]}")
+            }
+            else -> sender.reply("Invalid lookup type")
+        }
     }
 
     fun onOreDecayRemoval() {
@@ -169,7 +196,7 @@ class LimitedOres : ImperiumApplication.Listener {
                     tile.block() is StaticWall && tile.block().attributes.get(Attribute.sand) != 0F ||
                         tile.block().itemDrop != null
                 ) {
-                    tile.setNet(Blocks.stoneWall)
+                    tile.setNet(Blocks.dirtWall)
                     blocksToRemove.add(coords)
                 }
             }
