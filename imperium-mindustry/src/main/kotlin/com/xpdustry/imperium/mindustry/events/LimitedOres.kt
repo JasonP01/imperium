@@ -31,6 +31,7 @@ import kotlin.random.Random
 import mindustry.Vars
 import mindustry.content.Blocks
 import mindustry.content.Items
+import mindustry.game.EventType.GameOverEvent
 import mindustry.gen.Groups
 import mindustry.type.Item
 import mindustry.world.Tile
@@ -70,6 +71,17 @@ class LimitedOres : ImperiumApplication.Listener {
             }
         }
         mapIndexed = true
+    }
+
+    @EventHandler
+    fun onMapEnd(event: GameOverEvent) {
+        ores.clear()
+        floorOres.clear()
+        blocksToRemove.clear()
+        mapIndexed = false
+        oresToRemove.clear()
+        floorsToRemove.clear()
+        blocksToRemove.clear()
     }
 
     @TaskHandler(interval = 3, unit = MindustryTimeUnit.SECONDS)
