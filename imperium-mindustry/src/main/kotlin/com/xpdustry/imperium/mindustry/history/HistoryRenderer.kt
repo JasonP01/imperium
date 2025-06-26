@@ -196,8 +196,12 @@ class SimpleHistoryRenderer(
                 components(text(it.lastName, ACCENT), space(), text("#${codec.encode(it.id)}", LIGHT_GRAY))
             } ?: text("Unknown", ACCENT)
         } else {
+<<<<<<< HEAD
+            components(ACCENT, translatable(author.team), space(), translatable(author.unit))
+=======
             // TODO Translate text("Unknown")
             components(ACCENT, translatable(author.team), space(), author.unit?.let(::translatable) ?: text("Unknown"))
+>>>>>>> origin/master
         }
 
     private fun getDisplayOrientation(rotation: Int): Component =

@@ -53,6 +53,15 @@ import mindustry.gen.Entityc
 import mindustry.gen.Player
 import org.slf4j.LoggerFactory
 
+<<<<<<< HEAD
+fun <T> Seq<T>.asList(): List<T> = MindustryCollections.immutableList(this)
+
+fun <T : Entityc> EntityGroup<T>.asList(): List<T> = MindustryCollections.immutableList(this)
+
+fun <K, V> ObjectMap<K, V>.asMap(): Map<K, V> = MindustryCollections.immutableMap(this)
+
+fun <T> ObjectSet<T>.asSet(): Set<T> = MindustryCollections.immutableSet(this)
+=======
 // Wtf...
 @Suppress("UNCHECKED_CAST") fun <T> Seq<T>.asList(): List<T> = MindustryCollections.immutableList(this as Seq<T & Any>)
 
@@ -64,6 +73,7 @@ fun <K, V> ObjectMap<K, V>.asMap(): Map<K, V> =
 
 @Suppress("UNCHECKED_CAST")
 fun <T> ObjectSet<T>.asSet(): Set<T> = MindustryCollections.immutableSet(this as ObjectSet<T & Any>)
+>>>>>>> origin/master
 
 // https://stackoverflow.com/a/73494554
 suspend fun <T> runMindustryThread(timeout: Duration = 5.seconds, task: () -> T): T =

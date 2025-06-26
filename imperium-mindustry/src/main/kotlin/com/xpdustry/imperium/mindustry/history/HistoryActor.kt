@@ -23,7 +23,11 @@ import mindustry.gen.Player
 import mindustry.gen.Unit as MindustryUnit
 import mindustry.type.UnitType
 
+<<<<<<< HEAD
+data class HistoryActor(val player: MindustryUUID?, val team: Team, val unit: UnitType) {
+=======
 data class HistoryActor(val player: MindustryUUID?, val team: Team, val unit: UnitType?) {
+>>>>>>> origin/master
     constructor(unit: MindustryUnit) : this(unit.player?.uuid(), unit.team(), unit.type)
 
     constructor(player: Player) : this(player.uuid(), player.team(), player.unit().type)

@@ -37,7 +37,11 @@ object DistanceAssignmentStrategy : SlotAssignmentStrategy {
             var mcost = Float.MAX_VALUE
 
             for (i in 0 until slots.size) {
+<<<<<<< HEAD
+                context.pattern.calculate(vector, slots[i], context.slots)
+=======
                 context.pattern.calculate(context, vector, slots[i])
+>>>>>>> origin/master
                 val cost = Mathf.dst2(member.targetVector.x, member.targetVector.y, vector.x, vector.y)
                 if (cost < mcost) {
                     mcost = cost

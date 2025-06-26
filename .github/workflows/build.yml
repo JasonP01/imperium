@@ -70,6 +70,10 @@ jobs:
 
       - name: Commit Formatted Code
         if: ${{ github.event_name != 'pull_request' }}
+<<<<<<< HEAD
+        uses: stefanzweifel/git-auto-commit-action@v5
+=======
         uses: stefanzweifel/git-auto-commit-action@v6
+>>>>>>> origin/master
         with:
           commit_message: "style: Format code"

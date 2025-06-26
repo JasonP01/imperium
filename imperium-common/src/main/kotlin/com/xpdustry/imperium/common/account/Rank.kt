@@ -26,7 +26,10 @@ enum class Rank {
     OVERSEER,
     MODERATOR,
     ADMIN,
+<<<<<<< HEAD
+=======
     HEAD_ADMIN,
+>>>>>>> origin/master
     OWNER;
 
     fun getRanksBelow() = entries.slice(0..this.ordinal)

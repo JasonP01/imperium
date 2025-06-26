@@ -18,7 +18,10 @@
 package com.xpdustry.imperium.mindustry.history
 
 import arc.graphics.Color
+<<<<<<< HEAD
+=======
 import arc.math.Mathf
+>>>>>>> origin/master
 import com.xpdustry.distributor.api.annotation.EventHandler
 import com.xpdustry.distributor.api.annotation.TaskHandler
 import com.xpdustry.distributor.api.command.CommandSender
@@ -48,7 +51,11 @@ import org.incendo.cloud.annotation.specifier.Range
 
 class HistoryCommand(instances: InstanceManager) : ImperiumApplication.Listener {
     private val historian = instances.get<Historian>()
+<<<<<<< HEAD
+    private val taps = PlayerMap<Long>(instances.get())
+=======
     private val taps = PlayerMap<PlayerTap>(instances.get())
+>>>>>>> origin/master
     private val users = instances.get<UserManager>()
     private val config = instances.get<ImperiumConfig>()
     private val historyRenderer = instances.get<HistoryRenderer>()
@@ -88,15 +95,23 @@ class HistoryCommand(instances: InstanceManager) : ImperiumApplication.Listener 
                 val last = taps[event.player]
                 if (
                     last != null &&
+<<<<<<< HEAD
+                        (System.currentTimeMillis() - last).milliseconds < config.mindustry.history.doubleClickDelay
+=======
                         (System.currentTimeMillis() - last.timestamp).milliseconds <
                             config.mindustry.history.doubleClickDelay &&
                         Mathf.within(last.x, last.y, event.tile.x.toFloat(), event.tile.y.toFloat(), 2F)
+>>>>>>> origin/master
                 ) {
                     taps.remove(event.player)
                     onTileHistoryCommand(CommandSender.player(event.player), event.tile.x, event.tile.y)
                 } else {
+<<<<<<< HEAD
+                    taps[event.player] = System.currentTimeMillis()
+=======
                     taps[event.player] =
                         PlayerTap(event.tile.x.toFloat(), event.tile.y.toFloat(), System.currentTimeMillis())
+>>>>>>> origin/master
                 }
             }
         }
@@ -140,6 +155,9 @@ class HistoryCommand(instances: InstanceManager) : ImperiumApplication.Listener 
         heatmapViewers[sender.player] = viewing
         sender.reply("Heatmap is now ${if (viewing) "enabled" else "disabled"}")
     }
+<<<<<<< HEAD
+=======
 
     data class PlayerTap(val x: Float, val y: Float, val timestamp: Long)
+>>>>>>> origin/master
 }

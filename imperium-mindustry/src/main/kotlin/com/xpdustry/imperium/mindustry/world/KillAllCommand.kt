@@ -18,12 +18,15 @@
 package com.xpdustry.imperium.mindustry.world
 
 import com.xpdustry.distributor.api.command.CommandSender
+<<<<<<< HEAD
+=======
 import com.xpdustry.distributor.api.component.ListComponent.components
 import com.xpdustry.distributor.api.component.NumberComponent.number
 import com.xpdustry.distributor.api.component.TextComponent.space
 import com.xpdustry.distributor.api.component.TranslatableComponent.translatable
 import com.xpdustry.distributor.api.component.style.ComponentColor
 import com.xpdustry.distributor.api.translation.TranslationArguments.array
+>>>>>>> origin/master
 import com.xpdustry.imperium.common.account.Rank
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.command.ImperiumCommand
@@ -31,19 +34,28 @@ import com.xpdustry.imperium.common.content.MindustryGamemode
 import com.xpdustry.imperium.common.inject.InstanceManager
 import com.xpdustry.imperium.common.inject.get
 import com.xpdustry.imperium.mindustry.command.annotation.ClientSide
+<<<<<<< HEAD
+=======
 import com.xpdustry.imperium.mindustry.command.annotation.Flag
+>>>>>>> origin/master
 import com.xpdustry.imperium.mindustry.command.annotation.Scope
 import com.xpdustry.imperium.mindustry.command.vote.AbstractVoteCommand
 import com.xpdustry.imperium.mindustry.command.vote.Vote
 import com.xpdustry.imperium.mindustry.command.vote.VoteManager
+<<<<<<< HEAD
+=======
 import com.xpdustry.imperium.mindustry.formation.FormationAI
+>>>>>>> origin/master
 import com.xpdustry.imperium.mindustry.misc.Entities
 import com.xpdustry.imperium.mindustry.misc.runMindustryThread
 import kotlin.time.Duration.Companion.seconds
 import mindustry.game.Team
 import mindustry.gen.Call
+<<<<<<< HEAD
+=======
 import mindustry.type.UnitType
 import org.incendo.cloud.annotation.specifier.Range
+>>>>>>> origin/master
 
 class KillAllCommand(instances: InstanceManager) :
     AbstractVoteCommand<Unit>(instances.get(), "killall", 30.seconds), ImperiumApplication.Listener {
@@ -51,27 +63,56 @@ class KillAllCommand(instances: InstanceManager) :
     @ImperiumCommand(["killall|ku"])
     @Scope(MindustryGamemode.SANDBOX)
     @ClientSide
+<<<<<<< HEAD
+    fun onKillUnitsCommand(sender: CommandSender) {
+=======
     fun onKillAllUnitsCommand(sender: CommandSender) {
+>>>>>>> origin/master
         onVoteSessionStart(sender.player, manager.session, Unit)
     }
 
     @ImperiumCommand(["killall|ku", "y"])
     @Scope(MindustryGamemode.SANDBOX)
     @ClientSide
+<<<<<<< HEAD
+    fun onKillUnitsYesCommand(sender: CommandSender) {
+=======
     fun onKillAllUnitsYesCommand(sender: CommandSender) {
+>>>>>>> origin/master
         onPlayerVote(sender.player, manager.session, Vote.YES)
     }
 
     @ImperiumCommand(["killall|ku", "n"])
     @Scope(MindustryGamemode.SANDBOX)
     @ClientSide
+<<<<<<< HEAD
+    fun onKillUnitsNoCommand(sender: CommandSender) {
+=======
     fun onKillAllUnitsNoCommand(sender: CommandSender) {
+>>>>>>> origin/master
         onPlayerVote(sender.player, manager.session, Vote.NO)
     }
 
     @ImperiumCommand(["killall|ku", "c"], Rank.MODERATOR)
     @Scope(MindustryGamemode.SANDBOX)
     @ClientSide
+<<<<<<< HEAD
+    fun onKillUnitsCancelCommand(sender: CommandSender) {
+        onPlayerCancel(sender.player, manager.session)
+    }
+
+    @ImperiumCommand(["killall|ku", "team|t"], Rank.MODERATOR)
+    @ClientSide
+    fun onKillUnitsTeamCommand(sender: CommandSender, team: Team) {
+        var count = 0
+        for (unit in Entities.getUnits().toList()) {
+            if (!unit.isPlayer && team == unit.team()) {
+                count++
+                Call.unitDespawn(unit)
+            }
+        }
+        sender.reply("Killed $count unit(s) from team ${team.coloredName()}")
+=======
     fun onKillAllUnitsCancelCommand(sender: CommandSender) {
         onPlayerCancel(sender.player, manager.session)
     }
@@ -118,6 +159,7 @@ class KillAllCommand(instances: InstanceManager) :
             )
         }
         sender.reply(components.build())
+>>>>>>> origin/master
     }
 
     override fun getVoteSessionDetails(session: VoteManager.Session<Unit>): String =
@@ -125,9 +167,13 @@ class KillAllCommand(instances: InstanceManager) :
 
     override suspend fun onVoteSessionSuccess(session: VoteManager.Session<Unit>) {
         runMindustryThread {
+<<<<<<< HEAD
+            Entities.getUnits().toList().forEach { unit -> if (!unit.isPlayer) Call.unitDespawn(unit) }
+=======
             Entities.getUnits().toList().forEach { unit ->
                 if (!unit.isPlayer && unit.controller() !is FormationAI) Call.unitDespawn(unit)
             }
+>>>>>>> origin/master
         }
     }
 }

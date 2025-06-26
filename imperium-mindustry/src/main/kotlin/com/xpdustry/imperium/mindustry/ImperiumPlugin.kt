@@ -52,6 +52,10 @@ import com.xpdustry.imperium.mindustry.command.HelpCommand
 import com.xpdustry.imperium.mindustry.component.ImperiumComponentRendererProvider
 import com.xpdustry.imperium.mindustry.config.ConventionListener
 import com.xpdustry.imperium.mindustry.control.ControlListener
+<<<<<<< HEAD
+import com.xpdustry.imperium.mindustry.events.LimitedOres
+=======
+>>>>>>> origin/master
 import com.xpdustry.imperium.mindustry.formation.FormationListener
 import com.xpdustry.imperium.mindustry.game.AlertListener
 import com.xpdustry.imperium.mindustry.game.AntiGriefListener
@@ -191,6 +195,10 @@ class ImperiumPlugin : AbstractMindustryPlugin() {
                 ChangelogCommand::class,
                 DayNighCycleListener::class,
                 ImperiumPermissionListener::class,
+<<<<<<< HEAD
+                LimitedOres::class,
+=======
+>>>>>>> origin/master
             )
             .forEach(application::register)
 
