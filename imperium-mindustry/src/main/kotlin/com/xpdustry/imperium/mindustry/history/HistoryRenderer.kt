@@ -33,7 +33,6 @@ import com.xpdustry.imperium.mindustry.history.config.BlockConfig
 import com.xpdustry.imperium.mindustry.misc.ImmutablePoint
 import com.xpdustry.imperium.mindustry.translation.GRAY
 import com.xpdustry.imperium.mindustry.translation.LIGHT_GRAY
-import jakarta.inject.Inject
 
 interface HistoryRenderer {
     suspend fun render(entries: List<HistoryEntry>, x: Int, y: Int): Component
@@ -41,9 +40,7 @@ interface HistoryRenderer {
     suspend fun render(entries: List<HistoryEntry>, actor: HistoryActor): Component
 }
 
-class SimpleHistoryRenderer
-@Inject
-constructor(
+class SimpleHistoryRenderer(
     private val users: UserManager,
     private val codec: IdentifierCodec,
     private val timeRenderer: TimeRenderer,
@@ -199,7 +196,8 @@ constructor(
                 components(text(it.lastName, ACCENT), space(), text("#${codec.encode(it.id)}", LIGHT_GRAY))
             } ?: text("Unknown", ACCENT)
         } else {
-            components(ACCENT, translatable(author.team), space(), translatable(author.unit))
+            // TODO Translate text("Unknown")
+            components(ACCENT, translatable(author.team), space(), author.unit?.let(::translatable) ?: text("Unknown"))
         }
 
     private fun getDisplayOrientation(rotation: Int): Component =

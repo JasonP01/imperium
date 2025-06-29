@@ -25,8 +25,10 @@ import com.xpdustry.distributor.api.command.CommandSender
 import com.xpdustry.imperium.common.account.AccountManager
 import com.xpdustry.imperium.common.account.Achievement
 import com.xpdustry.imperium.common.account.Rank
+import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.command.ImperiumCommand
-import com.xpdustry.imperium.common.lifecycle.LifecycleListener
+import com.xpdustry.imperium.common.inject.InstanceManager
+import com.xpdustry.imperium.common.inject.get
 import com.xpdustry.imperium.mindustry.command.annotation.ClientSide
 import com.xpdustry.imperium.mindustry.command.annotation.RequireAchievement
 import com.xpdustry.imperium.mindustry.misc.asAudience
@@ -39,7 +41,6 @@ import com.xpdustry.imperium.mindustry.translation.formation_pattern_change
 import com.xpdustry.imperium.mindustry.translation.formation_pattern_failure_no_permission
 import com.xpdustry.imperium.mindustry.translation.formation_pattern_list
 import com.xpdustry.imperium.mindustry.translation.formation_toggle
-import jakarta.inject.Inject
 import java.util.ArrayDeque
 import kotlin.collections.set
 import kotlin.math.max
@@ -48,12 +49,12 @@ import mindustry.content.UnitTypes
 import mindustry.entities.Units
 import mindustry.game.EventType.Trigger
 import mindustry.gen.Groups
-import mindustry.gen.Nulls
 import mindustry.gen.Unit as MindustryUnit
 
-class FormationListener @Inject constructor(private val accounts: AccountManager) : LifecycleListener {
+class FormationListener(instances: InstanceManager) : ImperiumApplication.Listener {
 
     private val interval = Interval()
+    private val accounts = instances.get<AccountManager>()
     private val formations = mutableMapOf<Int, FormationContext>()
 
     @TriggerHandler(Trigger.update)
@@ -144,7 +145,7 @@ class FormationListener @Inject constructor(private val accounts: AccountManager
                 sender.reply(formation_toggle(enabled = false))
                 return@runMindustryThread false
             }
-            if (sender.player.unit().dead() || sender.player.unit() == Nulls.unit) {
+            if (sender.player.unit().dead() || sender.player.unit() == null) {
                 sender.error(formation_failure_dead())
                 return@runMindustryThread false
             }
