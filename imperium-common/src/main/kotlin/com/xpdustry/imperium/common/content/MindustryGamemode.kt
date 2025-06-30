@@ -18,6 +18,7 @@
 package com.xpdustry.imperium.common.content
 
 import com.xpdustry.imperium.mindustry.events.*
+import kotlin.reflect.KClass
 
 enum class MindustryGamemode(val pvp: Boolean = false, val type: MindustryGamemodeSubtype) {
     SURVIVAL(type = MindustryGamemodeSubtype.Standard),
@@ -42,7 +43,7 @@ sealed class MindustryGamemodeSubtype {
     enum class EventType(val clazz: KClass<*>?) {
         NONE(null),
         LIMITED_ORE(LimitedOres::class),
-        CRATES(EventListener::class),
+        CRATES(Crates::class),
         // Add more event types as needed
     }
 }

@@ -49,7 +49,7 @@ import mindustry.world.Tile
 import mindustry.world.blocks.ConstructBlock
 import mindustry.world.blocks.ConstructBlock.ConstructBuild
 
-class EventListener(instances: InstanceManager) : ImperiumApplication.Listener {
+class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
     private val freeTiles = mutableListOf<Pair<Int, Int>>()
     // Tiles that have StaticWalls in thier area
     // Used when we have no valid freeTiles

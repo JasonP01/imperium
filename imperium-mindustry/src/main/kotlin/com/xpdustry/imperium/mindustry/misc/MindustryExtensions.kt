@@ -99,7 +99,25 @@ val Block.isSourceBlock: Boolean
 val Block.isVoidBlock: Boolean
     get() = this is ItemVoid || this is LiquidVoid || this is PowerVoid
 
+val Block.isDistribution: Boolean
+    get() =
+        this is Duct ||
+            this is DuctRouter ||
+            this is OverflowDuct ||
+            this is StackConveyor ||
+            this is StackRouter ||
+            this is Conveyor ||
+            this is StackConveyor ||
+            this is Junction ||
+            this is Sorter ||
+            this is Router ||
+            this is OverflowGate
+
 fun Color.toHexString(): String = String.format("#%06x", rgb888())
+
+fun Number.toWorldFloat(): Float {
+    return (this.toDouble() * Vars.tilesize).toFloat()
+}
 
 fun getItemIcon(item: Item): String =
     when (item) {
