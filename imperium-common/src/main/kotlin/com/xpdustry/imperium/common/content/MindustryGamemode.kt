@@ -17,16 +17,32 @@
  */
 package com.xpdustry.imperium.common.content
 
-enum class MindustryGamemode(val pvp: Boolean = false) {
-    SURVIVAL,
-    ATTACK,
-    PVP(pvp = true),
-    SANDBOX,
-    ROUTER,
-    SURVIVAL_EXPERT,
-    HEXED(pvp = true),
-    TOWER_DEFENSE,
-    HUB,
-    TESTING,
-    EVENTS,
+import com.xpdustry.imperium.mindustry.events.*
+
+enum class MindustryGamemode(val pvp: Boolean = false, val type: MindustryGamemodeSubtype) {
+    SURVIVAL(type = MindustryGamemodeSubtype.Standard),
+    ATTACK(type = MindustryGamemodeSubtype.Standard),
+    PVP(pvp = true, type = MindustryGamemodeSubtype.Standard),
+    SANDBOX(type = MindustryGamemodeSubtype.Standard),
+    ROUTER(type = MindustryGamemodeSubtype.Standard),
+    SURVIVAL_EXPERT(type = MindustryGamemodeSubtype.Standard),
+    HEXED(pvp = true, type = MindustryGamemodeSubtype.Standard),
+    TOWER_DEFENSE(type = MindustryGamemodeSubtype.Standard),
+    HUB(type = MindustryGamemodeSubtype.Standard),
+    TESTING(type = MindustryGamemodeSubtype.Standard),
+    EVENTS(type = MindustryGamemodeSubtype.Events(MindustryGamemodeSubtype.EventType.NONE)),
+}
+
+// Use object for Standard, and class for Events to allow for event type
+// Such a long name, shorten?
+sealed class MindustryGamemodeSubtype {
+    data object Standard : MindustryGamemodeSubtype()
+    data class Events(val type: EventType) : MindustryGamemodeSubtype()
+
+    enum class EventType(val clazz: KClass<*>?) {
+        NONE(null),
+        LIMITED_ORE(LimitedOres::class),
+        CRATES(EventListener::class),
+        // Add more event types as needed
+    }
 }

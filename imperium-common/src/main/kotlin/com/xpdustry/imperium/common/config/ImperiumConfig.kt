@@ -213,3 +213,4 @@ sealed interface MetricConfig {
         val interval: Duration = 10.seconds,
     ) : MetricConfig
 }
+

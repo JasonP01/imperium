@@ -197,6 +197,15 @@ class ImperiumPlugin : AbstractMindustryPlugin() {
         val gamemode = application.instances.get<ImperiumConfig>().mindustry.gamemode
         if (gamemode == MindustryGamemode.HUB) {
             application.register(HubListener::class)
+        } else if (gamemode == MindustryGamemode.EVENTS) {
+            val eventtype: MindustryGamemodeSubtype.Events = gamemode.type
+            if (eventtype.type != MindustryGamemodeSubtype.EventType.NONE) {
+                eventtype.type.clazz?.let { clazz ->
+                    @Suppress("UNCHECKED_CAST")
+                    application.register(clazz as KClass<Any>)
+                    Core.settings.remove("totalPlayers")
+                }
+            }
         } else {
             Core.settings.remove("totalPlayers")
         }
@@ -307,4 +316,9 @@ private fun Application.restart() {
             }
         }
     )
+}
+
+// Used to get the active application
+public fun getApplication() {
+    return application
 }
