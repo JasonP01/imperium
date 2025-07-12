@@ -21,6 +21,7 @@ import arc.graphics.Color
 import arc.math.geom.Vec2
 import arc.util.Tmp
 import com.xpdustry.imperium.mindustry.misc.toWorldFloat
+import mindustry.Vars
 import mindustry.content.Fx
 import mindustry.content.UnitTypes
 import mindustry.entities.*
@@ -71,11 +72,11 @@ object VaultTypes {
                     val unit = UnitTypes.dagger.create(team)
                     unit.weapons.clear() // remove old weapon
                     unit.weapons.addAll(UnitTypes.quasar.weapons)
-                    unit.rotation(0)
+                    unit.rotation(0f)
                     Tmp.v1.rnd(Vars.tilesize * 2)
                     unit.set(x + Tmp.v1.x, x + Tmp.v1.y)
                     unit.add()
-                    Call.effect(Fx.spawn, x, y, 0f, team.color)
+                    Call.effect(Fx.spawn, x.toFloat(), y.toFloat(), 0f, team.color)
                 }
             },
             Vault("test2", 1, false) { x, y, team -> println("i dont want to finish this") },

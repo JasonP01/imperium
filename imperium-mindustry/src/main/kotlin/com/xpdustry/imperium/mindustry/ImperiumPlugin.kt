@@ -33,6 +33,7 @@ import com.xpdustry.imperium.common.application.BaseImperiumApplication
 import com.xpdustry.imperium.common.application.ExitStatus
 import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.content.MindustryGamemode
+import com.xpdustry.imperium.common.content.MindustryGamemode.MindustryGamemodeSubtype
 import com.xpdustry.imperium.common.inject.get
 import com.xpdustry.imperium.common.registerApplication
 import com.xpdustry.imperium.common.registerCommonModule
@@ -198,12 +199,19 @@ class ImperiumPlugin : AbstractMindustryPlugin() {
         if (gamemode == MindustryGamemode.HUB) {
             application.register(HubListener::class)
         } else if (gamemode == MindustryGamemode.EVENTS) {
-            val eventtype: MindustryGamemodeSubtype.Events = gamemode.type
-            if (eventtype.type != MindustryGamemodeSubtype.EventType.NONE) {
-                eventtype.type.clazz?.let { clazz ->
-                    @Suppress("UNCHECKED_CAST")
-                    application.register(clazz as KClass<Any>)
-                    Core.settings.remove("totalPlayers")
+            val subtype = gamemode.type
+            if (subtype is MindustryGamemodeSubtype.Events && subtype.type != MindustryGamemodeSubtype.EventType.NONE) {
+                subtype.type.className?.let { className ->
+                    val clazz = try {
+                        @Suppress("UNCHECKED_CAST")
+                        Class.forName(className).kotlin as? KClass<Any>
+                    } catch (_: Exception) {
+                        null
+                    }
+                    clazz?.let {
+                        application.register(it)
+                        Core.settings.remove("totalPlayers")
+                    }
                 }
             }
         } else {

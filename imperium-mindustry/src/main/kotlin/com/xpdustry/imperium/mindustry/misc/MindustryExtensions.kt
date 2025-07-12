@@ -32,6 +32,7 @@ import mindustry.gen.Iconc
 import mindustry.net.Administration
 import mindustry.type.Item
 import mindustry.world.Block
+import mindustry.world.blocks.distribution.* // too many imports >:C
 import mindustry.world.blocks.sandbox.ItemSource
 import mindustry.world.blocks.sandbox.ItemVoid
 import mindustry.world.blocks.sandbox.LiquidSource
