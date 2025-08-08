@@ -17,6 +17,7 @@
  */
 package com.xpdustry.imperium.common.account
 
+import com.xpdustry.imperium.common.config.MindustryConfig
 import java.time.Instant
 import kotlin.time.Duration
 
@@ -29,4 +30,8 @@ data class Account(
     val creation: Instant,
     val legacy: Boolean,
     val rank: Rank,
+    val lastJoin: Instant? = null,
+    val lastName: String, // last used ingame name
+    val chatMessages: String, // stores 200 chat messages as JSON
+    val tileHistory: String // 2000 history logs as JSON
 )

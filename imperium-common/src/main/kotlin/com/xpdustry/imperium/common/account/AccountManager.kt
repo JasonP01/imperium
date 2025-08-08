@@ -42,6 +42,8 @@ import kotlin.time.toJavaDuration
 import kotlin.time.toKotlinDuration
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -457,6 +459,10 @@ class SimpleAccountManager(
             creation = this[AccountTable.creation],
             legacy = this[AccountTable.legacy],
             rank = this[AccountTable.rank],
+            lastJoin = this[AccountTable.lastJoin],
+            lastName = this[AccountTable.lastName],
+            chatMessages = this[AccountTable.chatMessages],
+            tileHistory = this[AccountTable.tileHistory]
         )
 
     companion object {

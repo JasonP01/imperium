@@ -35,6 +35,10 @@ object AccountTable : IntIdTable("account") {
     val legacy = bool("legacy").default(false)
     val rank = enumerationByName<Rank>("rank", 32).default(Rank.EVERYONE)
     val creation = timestamp("creation").defaultExpression(CurrentTimestamp)
+    val lastJoin = timestamp("last_join").nullable().default(null)
+    val lastName = varchar("last_name", 32).default("")
+    val chatMessages = text("chat_messages").default("") // JSON serialized
+    val tileHistory = text("tile_history").default("") // JSON serialized
 }
 
 object AccountSessionTable : Table("account_session") {
