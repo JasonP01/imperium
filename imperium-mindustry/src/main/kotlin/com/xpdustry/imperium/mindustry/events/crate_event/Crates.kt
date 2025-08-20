@@ -15,9 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.xpdustry.imperium.mindustry.events
+package com.xpdustry.imperium.mindustry.events.crate_event
 
-import arc.Events
 import com.xpdustry.distributor.api.annotation.EventHandler
 import com.xpdustry.distributor.api.annotation.TaskHandler
 import com.xpdustry.distributor.api.command.CommandSender
@@ -26,7 +25,6 @@ import com.xpdustry.imperium.common.account.Rank
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.async.ImperiumScope
 import com.xpdustry.imperium.common.command.ImperiumCommand
-import com.xpdustry.imperium.common.content.MindustryGamemode
 import com.xpdustry.imperium.common.inject.InstanceManager
 import com.xpdustry.imperium.common.misc.LoggerDelegate
 import com.xpdustry.imperium.mindustry.command.annotation.ClientSide
@@ -47,7 +45,7 @@ import mindustry.game.Team
 import mindustry.gen.Call
 import mindustry.world.Tile
 import mindustry.world.blocks.ConstructBlock
-import mindustry.world.blocks.ConstructBlock.ConstructBuild
+import mindustry.world.blocks.environment.StaticWall
 
 class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
     private val freeTiles = mutableListOf<Pair<Int, Int>>()
@@ -55,7 +53,7 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
     // Used when we have no valid freeTiles
     private val otherTiles = mutableListOf<Pair<Int, Int>>()
     private val crateLabels = mutableListOf<CrateData>()
-    private val crates = mutableMapOf<Pair(Int, Int), CrateData>()
+    private val crates = mutableMapOf<Pair<Int, Int>, CrateData>()
     private var delayJob: Job? = null
 
     @EventHandler
@@ -103,6 +101,7 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
 
     @TaskHandler(interval = 1L, unit = MindustryTimeUnit.SECONDS)
     fun crateRarityLabel() {
+        if (crateLabels.isEmpty()) return
         for (cdata in crateLabels) {
             val rarityText =
                 when (cdata.rarity) {
@@ -112,7 +111,7 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
                     4 -> "[purple]Epic"
                     5 -> "[gold]Legendary"
                     6 -> "[orange]M[gold]y[orange]t[gold]h[orange]i[gold]c"
-                    else -> "Unknown, this shouldnt happen"
+                    else -> "Unknown, this shouldn't happen"
                 }
             Call.label(
                 "Event Vault\nRarity: $rarityText", 1f, cdata.x.toWorldFloat(), cdata.y.toWorldFloat())
@@ -124,11 +123,12 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
     @ClientSide
     fun onManualGenerateCommand(
         sender: CommandSender,
-        x: Int = 0,
-        y: Int = 0,
-        @Flag rarity: Int = 0
+        @Flag x: Int = 0,
+        @Flag y: Int = 0,
+        @Flag("r") rarity: Int = 0,
+        @Flag("t") type: String? = null
     ) {
-        generateCrate(x, y, rarity, true)
+        generateCrate(x, y, rarity, true, type)
         sender.player.sendMessage("Spawned crate at $x, $y with rarity $rarity")
     }
 
@@ -139,7 +139,7 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
         if (freeTiles.isEmpty()) {
             if (otherTiles.isEmpty()) {
                 LOGGER.error("How is the entire map full??")
-                Call.showInfoMessage(
+                Call.infoMessage(
                     """
                     [scarlet]The map has no valid tiles left to spawn crates!
                     [white] Free up space for crates to spawn!
@@ -169,16 +169,17 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
         registerOtherTiles()
     }
 
-    fun generateCrate(x: Int, y: Int, rarity: Int, wasDirty: Boolean) {
+    fun generateCrate(x: Int, y: Int, rarity: Int, wasDirty: Boolean, type: String? = null) {
         val newRarity = rarity.takeIf { it != 0 } ?: generateRarity()
         val tile = Vars.world.tile(x, y)
-        val crateData = CrateData(newRarity, x, y, if (wasDirty) {
-            (x - 1..x + 1).flatMap { x1 ->
-                (y - 1..y + 1).mapNotNull { y1 ->
-                    Vars.world.tile(x1, y1)
+        val crateData = CrateData(
+            newRarity, x, y, (if (wasDirty) {
+                (x - 1..x + 1).flatMap { x1 ->
+                    (y - 1..y + 1).mapNotNull { y1 ->
+                        Vars.world.tile(x1, y1)
+                    }
                 }
-            }
-        } else emptyList())
+            } else emptyList()) as MutableList<Tile>, type)
         crates[Pair(x, y)] = crateData
 
         val rarityText =
@@ -205,22 +206,20 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
         if (building !is ConstructBlock.ConstructBuild || building.current != Blocks.vault) return
         val x = event.tile.x
         val y = event.tile.y
-        val crate = crates[Pair(x, y)] ?: return
+        val crate = crates[Pair(x.toInt(), y.toInt())] ?: return
         handleCrateRemoval(crate, event.tile, event.team)
     }
 
     fun handleCrateRemoval(vault: CrateData, tile: Tile, team: Team) {
-        val crate = getVaultByRarity(vault.rarity).random()
+        val crate = if (vault.type != null) getVaultByType(vault.type) else getVaultByRarity(vault.rarity).random()
         crate.effect(vault.x, vault.y, team)
         crates.remove(Pair(vault.x, vault.y))
         // Restore previous blocks if any were replaced
         if (vault.was.isNotEmpty()) {
             for (prevTile in vault.was) {
                 // Only restore if the tile is valid and not null
-                val originalTile = Vars.world.tile(prevTile.x, prevTile.y)
-                if (originalTile != null) {
-                    originalTile.setNet(prevTile.block())
-                }
+                val originalTile = Vars.world.tile(prevTile.x.toInt(), prevTile.y.toInt())
+                originalTile?.setNet(prevTile.block())
             }
         } else {
             tile.setNet(Blocks.air)
@@ -245,7 +244,7 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
             return (x - 1..x + 1).all { x1 ->
                 (y - 1..y + 1).all { y1 ->
                     val tile = Vars.world.tile(x1, y1)
-                    tile != null && tile.block() == Blocks.air
+                    tile != null && tile.block() == Blocks.air && !tile.inEnemyRange()
                 }
             }
         } else {
@@ -257,6 +256,11 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
                 }
             }
         }
+    }
+
+    // TODO: FINISHME
+    fun Tile.inEnemyRange(): Boolean {
+        return this.x == 1.toShort()
     }
 
     companion object {

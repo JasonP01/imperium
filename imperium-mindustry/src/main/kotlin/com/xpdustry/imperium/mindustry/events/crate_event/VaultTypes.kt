@@ -15,28 +15,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.xpdustry.imperium.mindustry.events
+package com.xpdustry.imperium.mindustry.events.crate_event
 
-import arc.graphics.Color
-import arc.math.geom.Vec2
-import arc.util.Tmp
 import com.xpdustry.imperium.mindustry.misc.toWorldFloat
-import mindustry.Vars
 import mindustry.content.Fx
 import mindustry.content.UnitTypes
-import mindustry.entities.*
-import mindustry.entities.abilities.*
-import mindustry.entities.bullet.*
-import mindustry.entities.effect.*
-import mindustry.entities.part.*
-import mindustry.entities.pattern.*
 import mindustry.game.Team
 import mindustry.gen.*
-import mindustry.graphics.Pal
-import mindustry.type.*
-import mindustry.type.ammo.*
-import mindustry.type.unit.*
-import mindustry.type.weapons.*
+import mindustry.world.Tile
 
 data class Vault(
     val name: String,
@@ -49,7 +35,8 @@ data class CrateData(
     val rarity: Int,
     val x: Int,
     val y: Int,
-    val was: MutableList<Tile>
+    val was: MutableList<Tile>,
+    val type: String?
 )
 
 fun getVaultByRarity(rarity: Int): List<Vault> {
@@ -64,18 +51,18 @@ fun getVaultByRarity(rarity: Int): List<Vault> {
     }
 }
 
+fun getVaultByType(vault: String): Vault? {
+    return VaultTypes.getByName(vault)
+}
+
 object VaultTypes {
     val commonVault =
         listOf(
+            // Quasar dagger - Chronus?
             Vault("Electric Dagger", 1, true) { x, y, team ->
                 repeat(1) {
-                    val unit = UnitTypes.dagger.create(team)
-                    unit.weapons.clear() // remove old weapon
-                    unit.weapons.addAll(UnitTypes.quasar.weapons)
-                    unit.rotation(0f)
-                    Tmp.v1.rnd(Vars.tilesize * 2)
-                    unit.set(x + Tmp.v1.x, x + Tmp.v1.y)
-                    unit.add()
+                    val unit = UnitTypes.quasar.spawn(team,x.toWorldFloat(), y.toWorldFloat(), 0f)
+                    unit.type = UnitTypes.dagger
                     Call.effect(Fx.spawn, x.toFloat(), y.toFloat(), 0f, team.color)
                 }
             },
@@ -84,14 +71,11 @@ object VaultTypes {
 
     val uncommonVault =
         listOf(
+            // Quad crawler
             Vault("Crawler Bomb", 2, true) { x, y, team ->
-                val unit = UnitTypes.crawler.create(team)
-                Tmp.v1.rnd(Vars.tilesize * 2)
-                unit.weapons.clear()
-                unit.weapons.add(UnitTypes.quad.weapons.first())
-                unit.set(x + Tmp.v1.x, x + Tmp.v1.y)
-                unit.add()
-                Call.effect(Fx.spawn, x, y, 0f, team.color)
+                val unit = UnitTypes.quad.spawn(team, x.toWorldFloat(), y.toWorldFloat(), 0f)
+                unit.type = UnitTypes.crawler
+                Call.effect(Fx.spawn, x.toWorldFloat(), y.toWorldFloat(), 0f, team.color)
             },
             Vault("test2", 2, false) { x, y, team ->
                 // Todo
@@ -137,4 +121,16 @@ object VaultTypes {
                 // Todo
             },
         )
+
+    fun getByName(name: String): Vault? {
+        return sequenceOf(
+            commonVault,
+            uncommonVault,
+            rareVault,
+            epicVault,
+            legendaryVault,
+            mythicVault
+        ).flatMap { it.asSequence() }
+            .find { it.name.equals(name, ignoreCase = true) }
+    }
 }

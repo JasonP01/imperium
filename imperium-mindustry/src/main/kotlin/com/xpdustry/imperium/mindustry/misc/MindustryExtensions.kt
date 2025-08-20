@@ -146,3 +146,32 @@ fun getItemIcon(item: Item): String =
         Items.dormantCyst -> Iconc.itemDormantCyst.toString()
         else -> "<${item.name}>"
     }
+
+/**
+ * Packs a flat list of coordinates into Mindustry-style "packed positions".
+ *
+ * Each pair of integers in [coords] represents (x, y). For example:
+ * listOf(124, 214, 81, 12) will produce two packed positions.
+ *
+ * The output integers can then be passed to bulk tile method `setTileBlocks`.
+ *
+ * @param coords A flat list of coordinates: x1, y1, x2, y2, ...
+ *               Must contain an even number of elements.
+ * @return A list of packed positions as Ints.
+ * @throws IllegalArgumentException if [coords] has an odd number of elements.
+ */
+fun packPositions(coords: List<Int>): List<Int> {
+    if (coords.size % 2 != 0) {
+        throw IllegalArgumentException("List must contain an even number of integers (x, y pairs). Found ${coords.size}.")
+    }
+
+    val packed = mutableListOf<Int>()
+    for (i in coords.indices step 2) {
+        val x = coords[i]
+        val y = coords[i + 1]
+
+        // Tiles outside the map will naturally result in null tiles
+        packed.add((x shl 16) or (y and 0xFFFF))
+    }
+    return packed
+}
