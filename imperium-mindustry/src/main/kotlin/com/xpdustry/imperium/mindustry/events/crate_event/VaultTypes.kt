@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.xpdustry.imperium.mindustry.events.crate_event
+package com.xpdustry.imperium.mindustry.events
 
 import com.xpdustry.imperium.mindustry.misc.toWorldFloat
 import mindustry.content.Fx
