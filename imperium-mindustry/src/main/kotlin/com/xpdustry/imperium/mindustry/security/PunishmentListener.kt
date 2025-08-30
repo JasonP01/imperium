@@ -186,11 +186,15 @@ class PunishmentListener(instances: InstanceManager) : ImperiumApplication.Liste
             ImperiumScope.MAIN.future {
                 val player = ctx.sender as? PlayerAudience ?: return@future ctx.message
                 // Dont include mods in filtering
-                if (!ctx.filter || Distributor.get()
-                        .playerPermissionProvider
-                        .getPermissions(player.player)
-                        .getPermission("imperium.rank.moderator")
-                        .asBoolean()) return@future ctx.message
+                if (
+                    !ctx.filter ||
+                        Distributor.get()
+                            .playerPermissionProvider
+                            .getPermissions(player.player)
+                            .getPermission("imperium.rank.moderator")
+                            .asBoolean()
+                )
+                    return@future ctx.message
                 val words = badWords.findBadWords(ctx.message, enumSetOf(Category.HATE_SPEECH, Category.SEXUAL))
                 if (words.isNotEmpty()) {
                     if (badWordsCounter.incrementAndCheck(MUUID.from(player.player))) {
