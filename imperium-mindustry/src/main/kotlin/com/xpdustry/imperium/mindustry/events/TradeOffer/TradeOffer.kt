@@ -52,7 +52,7 @@ class TradeOffer(val instances: InstanceManager): ImperiumApplication.Listener {
 
     suspend fun choose() {
         Distributor.get().audienceProvider.everyone.sendMessage(translatable("imperium.tradeOffer.choicesSoon"))
-        delay(10.seconds)
+        delay(3.seconds)
         displayMenu()
     }
 

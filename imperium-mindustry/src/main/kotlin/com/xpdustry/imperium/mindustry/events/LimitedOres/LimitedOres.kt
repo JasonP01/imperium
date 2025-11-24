@@ -37,11 +37,8 @@ import mindustry.world.Tile
 import mindustry.world.blocks.environment.OreBlock
 import mindustry.world.blocks.environment.StaticWall
 import mindustry.world.blocks.production.BeamDrill
-import mindustry.world.blocks.production.BeamDrill.BeamDrillBuild
 import mindustry.world.blocks.production.Drill
-import mindustry.world.blocks.production.Drill.DrillBuild
 import mindustry.world.blocks.production.WallCrafter
-import mindustry.world.blocks.production.WallCrafter.WallCrafterBuild
 import mindustry.world.meta.Attribute
 
 class LimitedOres : ImperiumApplication.Listener {

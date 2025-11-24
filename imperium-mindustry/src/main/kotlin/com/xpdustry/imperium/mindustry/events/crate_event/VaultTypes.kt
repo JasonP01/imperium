@@ -1,4 +1,6 @@
 /*
+
+/*
  * Imperium, the software collection powering the Chaotic Neutral network.
  * Copyright (C) 2024  Xpdustry
  *
@@ -134,3 +136,5 @@ object VaultTypes {
             .find { it.name.equals(name, ignoreCase = true) }
     }
 }
+
+*/

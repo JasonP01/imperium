@@ -17,21 +17,21 @@
  */
 package com.xpdustry.imperium.common.content
 
-enum class MindustryGamemode(val pvp: Boolean = false, val type: MindustryGamemodeSubtype) {
-    SURVIVAL(type = MindustryGamemodeSubtype.Standard),
-    ATTACK(type = MindustryGamemodeSubtype.Standard),
-    PVP(pvp = true, type = MindustryGamemodeSubtype.Standard),
-    SANDBOX(type = MindustryGamemodeSubtype.Standard),
-    ROUTER(type = MindustryGamemodeSubtype.Standard),
-    SURVIVAL_EXPERT(type = MindustryGamemodeSubtype.Standard),
-    HEXED(pvp = true, type = MindustryGamemodeSubtype.Standard),
-    TOWER_DEFENSE(type = MindustryGamemodeSubtype.Standard),
-    HUB(type = MindustryGamemodeSubtype.Standard),
-    TESTING(type = MindustryGamemodeSubtype.Standard),
-    EVENTS(type = MindustryGamemodeSubtype.Events(MindustryGamemodeSubtype.EventType.NONE)),
+enum class MindustryGamemode(val pvp: Boolean = false, /* val type: MindustryGamemodeSubtype */) {
+    SURVIVAL(),
+    ATTACK(),
+    PVP(pvp = true),
+    SANDBOX(),
+    ROUTER(),
+    SURVIVAL_EXPERT(),
+    HEXED(pvp = true,),
+    TOWER_DEFENSE(),
+    HUB(),
+    TESTING(),
+    EVENTS(),
 }
 
-// Use object for Standard, and class for Events to allow for event type
+/* // Use object for Standard, and class for Events to allow for event type
 // Such a long name, shorten?
 sealed class MindustryGamemodeSubtype {
     data object Standard : MindustryGamemodeSubtype()
@@ -43,4 +43,4 @@ sealed class MindustryGamemodeSubtype {
         CRATES("com.xpdustry.imperium.mindustry.events.Crates"),
         // Add more event types as needed
     }
-}
+} */

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.xpdustry.imperium.mindustry.events
+/* package com.xpdustry.imperium.mindustry.events
 
 import com.xpdustry.distributor.api.annotation.EventHandler
 import com.xpdustry.distributor.api.annotation.TaskHandler
@@ -212,7 +212,7 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
 
     fun handleCrateRemoval(vault: CrateData, tile: Tile, team: Team) {
         val crate = if (vault.type != null) getVaultByType(vault.type) else getVaultByRarity(vault.rarity).random()
-        crate.effect(vault.x, vault.y, team)
+        // crate.effect(vault.x, vault.y, team)
         crates.remove(Pair(vault.x, vault.y))
         // Restore previous blocks if any were replaced
         if (vault.was.isNotEmpty()) {
@@ -266,4 +266,4 @@ class Crates(instances: InstanceManager) : ImperiumApplication.Listener {
     companion object {
         private val LOGGER by LoggerDelegate()
     }
-}
+} */

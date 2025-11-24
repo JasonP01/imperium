@@ -33,7 +33,7 @@ import com.xpdustry.imperium.common.application.BaseImperiumApplication
 import com.xpdustry.imperium.common.application.ExitStatus
 import com.xpdustry.imperium.common.config.ImperiumConfig
 import com.xpdustry.imperium.common.content.MindustryGamemode
-import com.xpdustry.imperium.common.content.MindustryGamemode.MindustryGamemodeSubtype
+// import com.xpdustry.imperium.common.content.MindustryGamemode.MindustryGamemodeSubtype
 import com.xpdustry.imperium.common.inject.get
 import com.xpdustry.imperium.common.registerApplication
 import com.xpdustry.imperium.common.registerCommonModule
@@ -53,6 +53,7 @@ import com.xpdustry.imperium.mindustry.command.HelpCommand
 import com.xpdustry.imperium.mindustry.component.ImperiumComponentRendererProvider
 import com.xpdustry.imperium.mindustry.config.ConventionListener
 import com.xpdustry.imperium.mindustry.control.ControlListener
+import com.xpdustry.imperium.mindustry.events.TradeOffer
 import com.xpdustry.imperium.mindustry.formation.FormationListener
 import com.xpdustry.imperium.mindustry.game.AlertListener
 import com.xpdustry.imperium.mindustry.game.AntiGriefListener
@@ -201,8 +202,9 @@ class ImperiumPlugin : AbstractMindustryPlugin() {
         if (gamemode == MindustryGamemode.HUB) {
             application.register(HubListener::class)
         } else if (gamemode == MindustryGamemode.EVENTS) {
-            val subtype = gamemode.type
-            if (subtype is MindustryGamemodeSubtype.Events && subtype.type != MindustryGamemodeSubtype.EventType.NONE) {
+            application.register(TradeOffer::class)
+            // val subtype = gamemode.type
+            /* if (subtype is MindustryGamemodeSubtype.Events && subtype.type != MindustryGamemodeSubtype.EventType.NONE) {
                 subtype.type.className?.let { className ->
                     val clazz = try {
                         @Suppress("UNCHECKED_CAST")
@@ -215,7 +217,7 @@ class ImperiumPlugin : AbstractMindustryPlugin() {
                         Core.settings.remove("totalPlayers")
                     }
                 }
-            }
+            } */
         } else {
             Core.settings.remove("totalPlayers")
         }
@@ -328,7 +330,7 @@ private fun Application.restart() {
     )
 }
 
-// Used to get the active application
+/* // Used to get the active application
 public fun getApplication() {
     return application
-}
+} */
