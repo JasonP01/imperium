@@ -38,6 +38,7 @@ import com.xpdustry.imperium.common.inject.InstanceManager
 import com.xpdustry.imperium.common.inject.get
 import com.xpdustry.imperium.common.misc.BLURPLE
 import com.xpdustry.imperium.common.misc.containsLink
+import com.xpdustry.imperium.common.misc.getRank
 import com.xpdustry.imperium.common.misc.toHexString
 import com.xpdustry.imperium.common.user.User
 import com.xpdustry.imperium.common.user.UserManager
@@ -47,6 +48,7 @@ import java.util.concurrent.CompletableFuture
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.future.future
 import mindustry.gen.Iconc
+import com.xpdustry.imperium.common.account.Rank
 
 class FlexListener(instances: InstanceManager) : ImperiumApplication.Listener {
     private val config = instances.get<ImperiumConfig>()
@@ -127,7 +129,8 @@ class FlexListener(instances: InstanceManager) : ImperiumApplication.Listener {
         }
 
         FlexAPI.get().messages.register("anti-links", Priority.NORMAL) { ctx ->
-            if (ctx.filter && ctx.sender != Distributor.get().audienceProvider.server && ctx.message.containsLink()) {
+            // Allow staff to send links in chat (if we need to link the invite manually for example)
+            if (ctx.filter && ctx.sender != Distributor.get().audienceProvider.server && ctx.message.containsLink() && ctx.sender.getRank() < Rank.OVERSEER) {
                 ctx.sender.sendMessage(text("You can't send discord invitations or links in the chat.", SCARLET))
                 CompletableFuture.completedFuture("")
             } else {
