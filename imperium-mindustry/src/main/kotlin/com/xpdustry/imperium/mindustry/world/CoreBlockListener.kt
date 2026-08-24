@@ -16,6 +16,7 @@ import com.xpdustry.imperium.common.security.SimpleRateLimiter
 import com.xpdustry.imperium.mindustry.command.annotation.ClientSide
 import com.xpdustry.imperium.mindustry.game.MenuToPlayEvent
 import com.xpdustry.imperium.mindustry.misc.Entities
+import com.xpdustry.imperium.mindustry.misc.runMindustryThread
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -43,16 +44,18 @@ constructor(private val config: ImperiumConfig, @Named(IMPERIUM_SCOPE) private v
         scope.launch {
             while (isActive) {
                 delay(1.seconds)
-                if (!Vars.state.isPlaying) continue
-                for (player in Entities.getPlayersAsync()) {
-                    for ((index, cluster) in getManager(player.team()).clusters.withIndex()) {
-                        Call.label(
-                            player.con,
-                            "#${index + 1}",
-                            1F,
-                            (cluster.x + (cluster.w / 2F)) * Vars.tilesize - (Vars.tilesize / 2F),
-                            (cluster.y + (cluster.h / 2F)) * Vars.tilesize - (Vars.tilesize / 2F),
-                        )
+                runMindustryThread {
+                    if (!Vars.state.isPlaying) return@runMindustryThread
+                    for (player in Entities.getPlayers()) {
+                        for ((index, cluster) in getManager(player.team()).clusters.withIndex()) {
+                            Call.label(
+                                player.con,
+                                "#${index + 1}",
+                                1F,
+                                (cluster.x + (cluster.w / 2F)) * Vars.tilesize - (Vars.tilesize / 2F),
+                                (cluster.y + (cluster.h / 2F)) * Vars.tilesize - (Vars.tilesize / 2F),
+                            )
+                        }
                     }
                 }
             }
