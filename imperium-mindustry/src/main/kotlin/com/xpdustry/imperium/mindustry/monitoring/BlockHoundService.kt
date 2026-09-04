@@ -34,7 +34,7 @@ class BlockHoundService(
 
     private var job: Job? = null
     private var lastWarn: Instant? = null
-    private var timeout = 20.seconds;
+    private var timeout = 20.seconds
 
     init {
         job = scope.launch {
