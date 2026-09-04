@@ -2,6 +2,7 @@
 package com.xpdustry.imperium.mindustry.game
 
 import arc.Core
+import arc.struct.IntSeq
 import arc.util.serialization.Jval
 import com.xpdustry.distributor.api.annotation.TaskHandler
 import com.xpdustry.distributor.api.command.CommandSender
@@ -43,7 +44,7 @@ class FunHandler(
     private val clients: ClientDetector,
 ) : ImperiumApplication.Listener, FunManager {
 
-    private val spawnedUnits: MutableSet<Int> = mutableSetOf()
+    private val spawnedChangeUnits = IntSeq()
     private val changedNames = mutableMapOf<Player, String>()
 
     override fun onImperiumInit() {
@@ -114,14 +115,14 @@ class FunHandler(
         cunit.elevation(tunit.elevation)
         cunit.add()
 
-        spawnedUnits.add(cunit.id)
+        spawnedChangeUnits.addUnique(cunit.id)
         target.unit(cunit)
         // just in-case
         target.unit().add()
         sender.reply("Set ${target.plainName()}'s unit to ${unit.name}")
 
-        if (tunit != null && (spawnedUnits.contains(tunit.id) || tunit.spawnedByCore)) {
-            spawnedUnits.remove(tunit.id)
+        if (tunit != null && (spawnedChangeUnits.contains(tunit.id) || tunit.spawnedByCore)) {
+            spawnedChangeUnits.removeValue(tunit.id)
             Call.unitDespawn(tunit)
         }
     }
@@ -141,15 +142,15 @@ class FunHandler(
     // Cleans up changeunit spawned units
     @TaskHandler(delay = 1, interval = 1, unit = MindustryTimeUnit.SECONDS)
     fun onChangeUnitCheck() {
-        val toRemove = mutableSetOf<Int>()
-        for (unit in spawnedUnits) {
-            val spawnedUnit = Groups.unit.find({ u -> u.id == unit }) ?: break
-            if (!spawnedUnit.isPlayer) {
-                Call.unitDespawn(spawnedUnit)
-                toRemove.add(unit)
+        for (index in spawnedChangeUnits.size - 1 downTo 0) {
+            val spawnedUnit = Groups.unit.getByID(spawnedChangeUnits[index])
+            if (spawnedUnit == null || !spawnedUnit.isPlayer) {
+                spawnedChangeUnits.removeIndex(index)
+                if (spawnedUnit != null) {
+                    Call.unitDespawn(spawnedUnit)
+                }
             }
         }
-        if (!toRemove.isEmpty()) spawnedUnits.removeAll(toRemove)
     }
 
     fun setUnitPosition(player: Player, x: Float, y: Float) {
@@ -180,11 +181,11 @@ class FunHandler(
 
             val xValue = json.getFloat("x", Float.NaN)
             require(!xValue.isNaN()) { "x must be a number" }
-            require((xValue/ Vars.tilesize).toInt() in 0..<Vars.world.width()) { "x must be within world borders" }
+            require((xValue / Vars.tilesize).toInt() in 0..<Vars.world.width()) { "x must be within world borders" }
 
             val yValue = json.getFloat("y", Float.NaN)
             require(!yValue.isNaN()) { "y must be a number" }
-            require((yValue/ Vars.tilesize).toInt() in 0..<Vars.world.height()) { "y must be within world borders" }
+            require((yValue / Vars.tilesize).toInt() in 0..<Vars.world.height()) { "y must be within world borders" }
 
             val navTpValue = json.getBool("navTp", false)
 
