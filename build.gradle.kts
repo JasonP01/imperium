@@ -21,8 +21,8 @@ import java.time.ZoneOffset
 import java.time.ZonedDateTime
 
 plugins {
-    id("com.diffplug.spotless") version "8.9.0" apply false
-    id("net.kyori.indra") version "4.0.0" apply false
+    id("com.diffplug.spotless") version "8.10.2" apply false
+    id("net.kyori.indra") version "4.1.0" apply false
     kotlin("jvm") version "2.4.10" apply false
     kotlin("plugin.serialization") version "2.4.10" apply false
     id("com.gradleup.shadow") version "9.6.1" apply false
