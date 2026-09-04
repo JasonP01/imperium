@@ -143,7 +143,7 @@ subprojects {
 
 project(":imperium-common") {
     dependencies {
-        "implementation"("org.bouncycastle:bcprov-jdk18on:1.84")
+        "implementation"("org.bouncycastle:bcprov-jdk18on:1.85.2")
 
         "api"("com.google.guava:guava:33.7.1-jre")
         "api"("com.sksamuel.hoplite:hoplite-core:3.0.0.RC3")
