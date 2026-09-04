@@ -80,7 +80,7 @@ import mindustry.io.SaveVersion
 class ImperiumPlugin : AbstractMindustryPlugin() {
     private val application = MindustryImperiumApplication(this)
 
-    override fun onInit() {
+    init {
         application.register(application.instances.create<BlockHoundService>())
     }
 

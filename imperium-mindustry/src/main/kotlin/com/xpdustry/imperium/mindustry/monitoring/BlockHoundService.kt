@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package com.xpdustry.imperium.mindustry.monitoring
 
+import com.xpdustry.distributor.api.annotation.EventHandler
 import com.xpdustry.imperium.common.application.ImperiumApplication
 import com.xpdustry.imperium.common.async.IMPERIUM_SCOPE
 import com.xpdustry.imperium.common.config.ImperiumConfig
@@ -21,6 +22,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import mindustry.game.EventType
 import okhttp3.MediaType.Companion.toMediaType
 
 @Inject
@@ -32,12 +34,13 @@ class BlockHoundService(
 
     private var job: Job? = null
     private var lastWarn: Instant? = null
+    private var timeout = 20.seconds;
 
     init {
         job = scope.launch {
             while (isActive) {
                 val blocked =
-                    runCatching { runMindustryThread(timeout = 10.seconds) { /* Nothin' */ } }
+                    runCatching { runMindustryThread(timeout = this@BlockHoundService.timeout) { /* Nothin' */ } }
                         .fold(
                             onSuccess = { false },
                             onFailure = { error ->
@@ -76,6 +79,11 @@ class BlockHoundService(
                 delay(5.seconds)
             }
         }
+    }
+
+    @EventHandler
+    fun onServerLoad(event: EventType.ServerLoadEvent) {
+        timeout = 5.seconds
     }
 
     override fun onImperiumExit() {
