@@ -129,7 +129,7 @@ constructor(private val config: ImperiumConfig, @Named(IMPERIUM_SCOPE) private v
             if (manager.getElement(building.rx, building.ry) != null) {
                 return@eachTile
             }
-            manager.addElement(Cluster.Block(building.rx, building.ry, building.block.size, Unit))
+            manager.upsertElement(Cluster.Block(building.rx, building.ry, building.block.size, Unit))
             logger.trace("Loaded {} core at ({}, {})", building.team.name, building.rx, building.ry)
         }
     }
@@ -156,7 +156,7 @@ constructor(private val config: ImperiumConfig, @Named(IMPERIUM_SCOPE) private v
             building.team.name,
         )
         getManager(event.previous).removeElement(building.rx, building.ry)
-        getManager(building.team).addElement(Cluster.Block(building.rx, building.ry, building.block.size, Unit))
+        getManager(building.team).upsertElement(Cluster.Block(building.rx, building.ry, building.block.size, Unit))
     }
 
     @EventHandler
@@ -172,7 +172,7 @@ constructor(private val config: ImperiumConfig, @Named(IMPERIUM_SCOPE) private v
             if (event.breaking) {
                 logger.trace("Removed {} core at ({}, {})", building.team.name, building.rx, building.ry)
             } else {
-                manager.addElement(Cluster.Block(building.rx, building.ry, building.block.size, Unit))
+                manager.upsertElement(Cluster.Block(building.rx, building.ry, building.block.size, Unit))
                 logger.trace("Added {} core at ({}, {})", building.team.name, building.rx, building.ry)
             }
         }

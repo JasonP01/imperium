@@ -3,15 +3,14 @@ package com.xpdustry.imperium.common.geometry
 
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 
 class ClusterManagerTest {
 
     @Test
     fun `test blocks that share a side`() {
         val manager = createManager()
-        manager.addElement(createBlock(0, 0, 1))
-        manager.addElement(createBlock(1, 0, 1))
+        manager.upsertElement(createBlock(0, 0, 1))
+        manager.upsertElement(createBlock(1, 0, 1))
         Assertions.assertEquals(1, manager.clusters.size)
 
         val cluster = manager.clusters[0]
@@ -25,25 +24,25 @@ class ClusterManagerTest {
     @Test
     fun `test blocks that do not share a side`() {
         val manager = createManager()
-        manager.addElement(createBlock(2, 2, 2))
-        manager.addElement(createBlock(-2, 0, 1))
-        manager.addElement(createBlock(10, 10, 10))
+        manager.upsertElement(createBlock(2, 2, 2))
+        manager.upsertElement(createBlock(-2, 0, 1))
+        manager.upsertElement(createBlock(10, 10, 10))
         Assertions.assertEquals(3, manager.clusters.size)
     }
 
     @Test
     fun `test blocks that partially share a side`() {
         val manager = createManager()
-        manager.addElement(createBlock(1, 1, 2))
-        manager.addElement(createBlock(3, 2, 2))
+        manager.upsertElement(createBlock(1, 1, 2))
+        manager.upsertElement(createBlock(3, 2, 2))
         Assertions.assertEquals(1, manager.clusters.size)
     }
 
     @Test
     fun `test blocks that only share a corner`() {
         val manager = createManager()
-        manager.addElement(createBlock(0, 0, 1))
-        manager.addElement(createBlock(1, 1, 1))
+        manager.upsertElement(createBlock(0, 0, 1))
+        manager.upsertElement(createBlock(1, 1, 1))
         Assertions.assertEquals(2, manager.clusters.size)
     }
 
@@ -52,7 +51,7 @@ class ClusterManagerTest {
         val manager = createManager()
         for (x in 0..4) {
             for (y in 0..4) {
-                manager.addElement(createBlock(x, y, 1))
+                manager.upsertElement(createBlock(x, y, 1))
             }
         }
 
@@ -76,7 +75,7 @@ class ClusterManagerTest {
         val manager = createManager()
         for (x in 0..2) {
             for (y in 0..5) {
-                manager.addElement(createBlock(x, y, 1))
+                manager.upsertElement(createBlock(x, y, 1))
             }
         }
 
@@ -94,9 +93,9 @@ class ClusterManagerTest {
     fun `test remove split`() {
         val manager = createManager()
         for (x in 0..2) {
-            manager.addElement(createBlock(x, 0, 1))
+            manager.upsertElement(createBlock(x, 0, 1))
         }
-        manager.addElement(createBlock(1, 1, 1))
+        manager.upsertElement(createBlock(1, 1, 1))
         Assertions.assertEquals(1, manager.clusters.size)
         manager.removeElement(1, 0)
         Assertions.assertEquals(3, manager.clusters.size)
@@ -107,21 +106,25 @@ class ClusterManagerTest {
         val manager = createManager()
         for (y in 0..2) {
             for (x in 0..2) {
-                manager.addElement(createBlock(x, y * 2, 1))
+                manager.upsertElement(createBlock(x, y * 2, 1))
             }
         }
         Assertions.assertEquals(3, manager.clusters.size)
-        manager.addElement(createBlock(1, 1, 1))
+        manager.upsertElement(createBlock(1, 1, 1))
         Assertions.assertEquals(2, manager.clusters.size)
-        manager.addElement(createBlock(1, 3, 1))
+        manager.upsertElement(createBlock(1, 3, 1))
         Assertions.assertEquals(1, manager.clusters.size)
     }
 
     @Test
-    fun `test error on add to occupied`() {
-        val manager = createManager()
-        manager.addElement(createBlock(0, 0, 1))
-        assertThrows<IllegalStateException> { manager.addElement(createBlock(0, 0, 1)) }
+    fun `test upsert replaces occupied block`() {
+        val manager = ClusterManager<String> { _, _ -> }
+        manager.upsertElement(Cluster.Block(0, 0, 1, "old"))
+        manager.upsertElement(Cluster.Block(0, 0, 1, "new"))
+
+        Assertions.assertEquals(1, manager.clusters.size)
+        Assertions.assertEquals(1, manager.clusters[0].blocks.size)
+        Assertions.assertEquals("new", manager.getElement(0, 0)?.second?.data)
     }
 
     private fun createManager() = ClusterManager<Unit> { _, _ -> }

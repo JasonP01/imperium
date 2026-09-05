@@ -23,13 +23,11 @@ class ClusterManager<T : Any>(private val listener: Listener<T>) {
         return null
     }
 
-    fun addElement(block: Cluster.Block<T>) {
+    fun upsertElement(block: Cluster.Block<T>) {
         val existing = getElement(block.x, block.y)
         if (existing != null) {
-            val (cluster, element) = existing
-            error(
-                "The point is occupied by the block (x=${element.x}, y=${element.y}, size=${element.size}) of the cluster (x=${cluster.x}, y=${cluster.y}, w=${cluster.w}, h=${cluster.h})"
-            )
+            val (_, element) = existing
+            removeElement(element.x, element.y)
         }
         val candidates = mutableListOf<Int>()
         for (i in _clusters.indices) {
